@@ -36,4 +36,8 @@ app.MapProductEndpoints();
 
 await app.MigrateDatabaseAsync<CatalogDbContext>(CatalogSeeder.SeedAsync);
 
+// Seeding may have changed product data, so never serve catalog pages cached by a previous version.
+await using (var scope = app.Services.CreateAsyncScope())
+    await scope.ServiceProvider.GetRequiredService<ProductCache>().InvalidateAsync();
+
 app.Run();

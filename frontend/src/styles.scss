@@ -513,3 +513,7 @@ button { font-family: inherit; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: #cfd5e1; border-radius: 10px; border: 2px solid var(--bg); }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* Catalog photos: gentle zoom on card hover (img lives inside <app-product-art>). */
+.product .media img { transition: transform 0.45s var(--ease); }
+.product:hover .media img { transform: scale(1.05); }

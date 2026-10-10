@@ -37,9 +37,10 @@ public sealed class UpsertProductRequestValidator : AbstractValidator<UpsertProd
         RuleFor(x => x.Stock).GreaterThanOrEqualTo(0).LessThan(1_000_000);
         RuleFor(x => x.Rating).InclusiveBetween(0, 5).When(x => x.Rating.HasValue);
         RuleFor(x => x.ImageUrl)
-            .Must(u => Uri.TryCreate(u, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps)
+            .Must(u => (u!.StartsWith('/') && !u.StartsWith("//"))
+                       || (Uri.TryCreate(u, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps))
             .When(x => !string.IsNullOrWhiteSpace(x.ImageUrl))
-            .WithMessage("Image URL must be an absolute https URL.");
+            .WithMessage("Image URL must be an https URL or a site path like /products/photo.webp.");
     }
 }
 

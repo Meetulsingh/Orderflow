@@ -9,6 +9,7 @@ export interface CartLine {
   price: number;
   stock: number;
   quantity: number;
+  imageUrl?: string | null;
 }
 
 const STORAGE_KEY = 'orderflow.cart';
@@ -49,7 +50,7 @@ export class CartStore {
     } else {
       this.lines.update(lines => [
         ...lines,
-        { productId: product.id, name: product.name, category: product.category, price: product.price, stock: product.stock, quantity }
+        { productId: product.id, name: product.name, category: product.category, price: product.price, stock: product.stock, quantity, imageUrl: product.imageUrl }
       ]);
     }
     // Feedback comes from the animated cart badge in the top bar (a toast would cover the cart drawer).

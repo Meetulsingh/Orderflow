@@ -61,7 +61,7 @@ const SCENARIOS: { id: PaymentScenario; title: string; desc: string; icon: strin
                   <div class="lines">
                     @for (line of cart.lines(); track line.productId) {
                       <div class="line">
-                        <div class="thumb"><app-product-art [name]="line.name" [category]="line.category" [iconSize]="24" /></div>
+                        <div class="thumb"><app-product-art [name]="line.name" [category]="line.category" [imageUrl]="line.imageUrl" [iconSize]="24" /></div>
                         <div class="grow">
                           <div class="strong">{{ line.name }}</div>
                           <div class="xs subtle">{{ line.category }} · {{ line.price | currency }} each</div>

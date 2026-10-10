@@ -1,4 +1,4 @@
-# OrderFlow — Event-Driven Microservices Commerce Platform
+﻿# OrderFlow â€” Event-Driven Microservices Commerce Platform
 
 An e-commerce order platform built as **independent .NET 10 microservices** that talk to each other asynchronously over **RabbitMQ**, with an **Angular 22** frontend that shows every order moving through the pipeline **in real time over SignalR**.
 
@@ -21,16 +21,16 @@ Monolithic checkouts couple everything together: one slow or failing dependency 
 flowchart LR
     UI["Angular 22 SPA<br/>(signals, standalone, zoneless)"] -- HTTPS / JWT --> GW
     UI <-. "SignalR (WebSockets)" .-> GW
-    GW["API Gateway<br/>YARP · JWT · rate limiting · CORS"]
+    GW["API Gateway<br/>YARP Â· JWT Â· rate limiting Â· CORS"]
     GW --> ID["Identity API<br/>JWT + refresh tokens"]
     GW --> CAT["Catalog API<br/>cache-aside"]
-    GW --> ORD["Ordering API<br/>CQRS · MediatR · outbox · SignalR hub"]
+    GW --> ORD["Ordering API<br/>CQRS Â· MediatR Â· outbox Â· SignalR hub"]
     GW --> PAY["Payment Worker"]
     GW --> NOT["Notification Worker"]
     ORD -- "price/stock lookup<br/>(resilient HTTP)" --> CAT
     CAT --- REDIS[("Upstash Redis")]
     ID & CAT & ORD & PAY & NOT --- PG[("Neon PostgreSQL<br/>schema per service")]
-    ORD -- OrderSubmitted --> MQ{{"RabbitMQ (CloudAMQP)<br/>topic exchanges · retries · _error DLQs"}}
+    ORD -- OrderSubmitted --> MQ{{"RabbitMQ (CloudAMQP)<br/>topic exchanges Â· retries Â· _error DLQs"}}
     MQ --> PAY
     PAY -- "PaymentProcessingStarted / Succeeded / Failed" --> MQ
     MQ --> ORD & CAT & NOT
@@ -55,15 +55,15 @@ sequenceDiagram
     O-->>B: 202 Accepted
     O-)MQ: outbox relay publishes OrderSubmitted
     MQ-)P: OrderSubmitted
-    MQ-)N: OrderSubmitted → "order received" email
-    P-)MQ: PaymentProcessingStarted … PaymentSucceeded
-    MQ-)O: update status → push via SignalR
+    MQ-)N: OrderSubmitted â†’ "order received" email
+    P-)MQ: PaymentProcessingStarted â€¦ PaymentSucceeded
+    MQ-)O: update status â†’ push via SignalR
     O--)B: orderUpdated (live)
-    MQ-)C: PaymentSucceeded → deduct stock, invalidate cache
-    MQ-)N: PaymentSucceeded → confirmation email + event log
+    MQ-)C: PaymentSucceeded â†’ deduct stock, invalidate cache
+    MQ-)N: PaymentSucceeded â†’ confirmation email + event log
 ```
 
-If the payment worker crashes on every attempt (try the **Chaos → DLQ** option at checkout), MassTransit retries three times, moves the message to the `_error` dead-letter queue and publishes `Fault<OrderSubmitted>`. Ordering consumes the fault and fails the order with a clear reason (compensation). Notification records a dead-letter alert, which appears on the admin dashboard.
+If the payment worker crashes on every attempt (try the **Chaos â†’ DLQ** option at checkout), MassTransit retries three times, moves the message to the `_error` dead-letter queue and publishes `Fault<OrderSubmitted>`. Ordering consumes the fault and fails the order with a clear reason (compensation). Notification records a dead-letter alert, which appears on the admin dashboard.
 
 ## Features
 
@@ -97,6 +97,7 @@ Demo accounts (one click on the login page):
 
 **Backend:** .NET 10, ASP.NET Core minimal APIs, YARP, EF Core 10 + Npgsql, MassTransit 8 (RabbitMQ), MediatR 12, FluentValidation, StackExchange.Redis, SignalR, Microsoft.Extensions.Http.Resilience, xUnit + Shouldly
 **Frontend:** Angular 22, TypeScript, RxJS, `@microsoft/signalr`, SCSS
+**Product photos:** [Unsplash](https://unsplash.com/license) (see `frontend/public/products/CREDITS.md`)
 **Infrastructure (all free tiers, no credit card):** Render (Docker web services + static site CDN), Neon PostgreSQL, CloudAMQP RabbitMQ, Upstash Redis, GitHub Actions CI
 
 ## Repository layout
