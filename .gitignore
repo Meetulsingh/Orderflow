@@ -1,0 +1,25 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+*.trx
+
+# Local tooling / logs
+.logs/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+.env.*
+appsettings.*.local.json
+
+# Frontend (also covered by frontend/.gitignore)
+node_modules/
+frontend/dist/
+frontend/.angular/

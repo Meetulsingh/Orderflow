@@ -1,0 +1,167 @@
+# Render Blueprint — deploys the whole OrderFlow platform on Render's FREE tier (no credit card).
+#
+# Before applying this Blueprint, create an Environment Group named `orderflow-secrets`
+# in the Render dashboard with these keys (see docs/DEPLOYMENT.md):
+#   DATABASE_URL   Neon PostgreSQL connection string (direct, not pooled)
+#   RABBITMQ_URL   CloudAMQP AMQP URL (amqps://…)
+#   REDIS_URL      Upstash Redis URL (rediss://…)
+#   JWT_SECRET     any random string of 32+ characters
+#
+# Free web services can't receive private-network traffic, so services call each other over HTTPS
+# using their public onrender.com URLs. If Render assigns a different URL to a service (because the
+# name is taken), update the matching Services__* / API_URL values below.
+
+previews:
+  generation: off
+
+services:
+  # ---------------------------------------------------------------- API Gateway (YARP)
+  - type: web
+    name: meetul-orderflow-api
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./src/Gateway/OrderFlow.Gateway/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: orderflow-secrets
+      - key: Services__Identity
+        value: https://meetul-orderflow-identity.onrender.com
+      - key: Services__Catalog
+        value: https://meetul-orderflow-catalog.onrender.com
+      - key: Services__Ordering
+        value: https://meetul-orderflow-ordering.onrender.com
+      - key: Services__Payment
+        value: https://meetul-orderflow-payment.onrender.com
+      - key: Services__Notification
+        value: https://meetul-orderflow-notification.onrender.com
+      - key: CORS_ORIGINS
+        value: https://*.onrender.com,http://localhost:4200
+    buildFilter:
+      paths:
+        - src/Gateway/**
+        - src/BuildingBlocks/**
+        - Directory.*.props
+
+  # ---------------------------------------------------------------- Identity service
+  - type: web
+    name: meetul-orderflow-identity
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./src/Services/Identity/OrderFlow.Identity.API/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: orderflow-secrets
+    buildFilter:
+      paths:
+        - src/Services/Identity/**
+        - src/BuildingBlocks/**
+        - Directory.*.props
+
+  # ---------------------------------------------------------------- Catalog service
+  - type: web
+    name: meetul-orderflow-catalog
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./src/Services/Catalog/OrderFlow.Catalog.API/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: orderflow-secrets
+    buildFilter:
+      paths:
+        - src/Services/Catalog/**
+        - src/BuildingBlocks/**
+        - Directory.*.props
+
+  # ---------------------------------------------------------------- Ordering service
+  - type: web
+    name: meetul-orderflow-ordering
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./src/Services/Ordering/OrderFlow.Ordering.API/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: orderflow-secrets
+      - key: Services__Catalog
+        value: https://meetul-orderflow-catalog.onrender.com
+    buildFilter:
+      paths:
+        - src/Services/Ordering/**
+        - src/BuildingBlocks/**
+        - Directory.*.props
+
+  # ---------------------------------------------------------------- Payment worker
+  - type: web
+    name: meetul-orderflow-payment
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./src/Services/Payment/OrderFlow.Payment.Worker/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: orderflow-secrets
+    buildFilter:
+      paths:
+        - src/Services/Payment/**
+        - src/BuildingBlocks/**
+        - Directory.*.props
+
+  # ---------------------------------------------------------------- Notification worker
+  - type: web
+    name: meetul-orderflow-notification
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./src/Services/Notification/OrderFlow.Notification.Worker/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: orderflow-secrets
+    buildFilter:
+      paths:
+        - src/Services/Notification/**
+        - src/BuildingBlocks/**
+        - Directory.*.props
+
+  # ---------------------------------------------------------------- Angular frontend (global CDN)
+  - type: web
+    name: meetul-orderflow
+    runtime: static
+    buildCommand: cd frontend && npm ci && npm run build
+    staticPublishPath: ./frontend/dist/orderflow-web/browser
+    envVars:
+      - key: API_URL
+        value: https://meetul-orderflow-api.onrender.com
+      - key: NODE_VERSION
+        value: "22"
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /env.js
+        name: Cache-Control
+        value: no-cache
+      - path: /index.html
+        name: Cache-Control
+        value: no-cache
+    buildFilter:
+      paths:
+        - frontend/**
