@@ -90,7 +90,10 @@ public static class ConnectionStrings
                 parts.Add($"password={Uri.UnescapeDataString(userInfo[0])}");
             }
         }
-        if (uri.Scheme.Equals("rediss", StringComparison.OrdinalIgnoreCase)) parts.Add("ssl=true");
+        // Upstash only accepts TLS connections, even when its dashboard shows a redis:// URL.
+        if (uri.Scheme.Equals("rediss", StringComparison.OrdinalIgnoreCase)
+            || uri.Host.EndsWith(".upstash.io", StringComparison.OrdinalIgnoreCase))
+            parts.Add("ssl=true");
         return string.Join(',', parts);
     }
 }
