@@ -9,11 +9,13 @@ COPY Directory.Build.props Directory.Packages.props ./
 COPY src/BuildingBlocks/OrderFlow.Contracts/OrderFlow.Contracts.csproj src/BuildingBlocks/OrderFlow.Contracts/
 COPY src/BuildingBlocks/OrderFlow.ServiceDefaults/OrderFlow.ServiceDefaults.csproj src/BuildingBlocks/OrderFlow.ServiceDefaults/
 COPY src/Services/Identity/OrderFlow.Identity.API/OrderFlow.Identity.API.csproj src/Services/Identity/OrderFlow.Identity.API/
+COPY src/Services/Assistant/OrderFlow.Assistant/OrderFlow.Assistant.csproj src/Services/Assistant/OrderFlow.Assistant/
 COPY src/Gateway/OrderFlow.Gateway/OrderFlow.Gateway.csproj src/Gateway/OrderFlow.Gateway/
 RUN dotnet restore src/Gateway/OrderFlow.Gateway/OrderFlow.Gateway.csproj
 
 COPY src/BuildingBlocks/ src/BuildingBlocks/
 COPY src/Services/Identity/OrderFlow.Identity.API/ src/Services/Identity/OrderFlow.Identity.API/
+COPY src/Services/Assistant/OrderFlow.Assistant/ src/Services/Assistant/OrderFlow.Assistant/
 COPY src/Gateway/OrderFlow.Gateway/ src/Gateway/OrderFlow.Gateway/
 RUN dotnet publish src/Gateway/OrderFlow.Gateway/OrderFlow.Gateway.csproj -c Release -o /app --no-restore /p:UseAppHost=false
 

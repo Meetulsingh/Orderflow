@@ -182,6 +182,16 @@ export interface SystemHealth {
   services: ServiceHealth[];
 }
 
+export interface AssistantTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface AssistantReply {
+  reply: string;
+  products: Product[];
+}
+
 export interface ProblemDetails {
   title?: string;
   detail?: string;

@@ -5,11 +5,12 @@ import { CartStore } from '../core/cart.store';
 import { OrderHubService } from '../core/order-hub.service';
 import { WarmupService } from '../core/warmup.service';
 import { Icon } from '../shared/icon';
+import { AssistantPanel } from '../features/assistant/assistant-panel';
 import { CartDrawer } from './cart-drawer';
 
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Icon, CartDrawer],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Icon, CartDrawer, AssistantPanel],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header class="topbar">
@@ -98,6 +99,7 @@ import { CartDrawer } from './cart-drawer';
     </footer>
 
     <app-cart-drawer />
+    <app-assistant-panel />
   `,
   styles: `
     :host { display: flex; flex-direction: column; min-height: 100vh; }

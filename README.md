@@ -71,6 +71,7 @@ If the payment worker crashes on every attempt (try the **Chaos â†’ DLQ** o
 | --- | --- |
 | **Gateway** | YARP reverse proxy, JWT validation per route, role-based policies, per-IP fixed-window rate limiting (stricter on `/api/auth`), CORS, WebSocket proxying, aggregated health endpoint, warm-up endpoint for sleeping free-tier services |
 | **Identity** | Registration and login, PBKDF2 password hashing, short-lived JWT access tokens, **rotating refresh tokens with reuse detection** (a reused token revokes every session), seeded demo accounts. Hosted in-process by the gateway (own schema and migrations) so sign-in needs one cold start on free hosting, not two |
+| **AI shopping assistant** | Chat panel that answers questions like "gift ideas under $60". The model **calls tools** (`search_products`, `show_products`) against the real catalog instead of inventing products, and its picks render as product cards with *Add to cart*. Provider-agnostic through `Microsoft.Extensions.AI` (runs on Google Gemini's free tier by default), per-user rate limit and a daily quota. Hosted in-process by the gateway |
 | **Catalog** | Search, filter, sort and paging; **Redis cache-aside** with generation-based invalidation (`X-Cache: HIT/MISS` header); admin CRUD; idempotent stock deduction on `PaymentSucceeded`; `ProductStockLow` events |
 | **Ordering** | **CQRS** with MediatR (commands and queries, validation and logging pipeline behaviors); DDD aggregate with a guarded state machine; **EF Core transactional outbox**; idempotency keys; optimistic concurrency (`xmin`); typed `HttpClient` with retry, circuit-breaker and timeout policies; **SignalR hub** with per-user and admin groups |
 | **Payment worker** | Simulated gateway with approve, decline and chaos scenarios; idempotent via a unique index (never charges twice) |
@@ -95,7 +96,7 @@ Demo accounts (one click on the login page):
 
 ## Tech stack
 
-**Backend:** .NET 10, ASP.NET Core minimal APIs, YARP, EF Core 10 + Npgsql, MassTransit 8 (RabbitMQ), MediatR 12, FluentValidation, StackExchange.Redis, SignalR, Microsoft.Extensions.Http.Resilience, xUnit + Shouldly
+**Backend:** .NET 10, ASP.NET Core minimal APIs, YARP, EF Core 10 + Npgsql, MassTransit 8 (RabbitMQ), MediatR 12, FluentValidation, StackExchange.Redis, SignalR, Microsoft.Extensions.Http.Resilience, Microsoft.Extensions.AI (tool calling), xUnit + Shouldly
 **Frontend:** Angular 22, TypeScript, RxJS, `@microsoft/signalr`, SCSS
 **Product photos:** [Unsplash](https://unsplash.com/license) (see `frontend/public/products/CREDITS.md`)
 **Infrastructure (all free tiers, no credit card):** Render (Docker web services + static site CDN), Neon PostgreSQL, CloudAMQP RabbitMQ, Upstash Redis, GitHub Actions CI

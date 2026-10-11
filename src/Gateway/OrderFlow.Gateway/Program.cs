@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using OrderFlow.Assistant;
 using OrderFlow.Gateway;
 using OrderFlow.Identity.API;
 using OrderFlow.ServiceDefaults;
@@ -14,6 +15,9 @@ builder.AddIdentityModule();
 var services = ProxyConfiguration.LoadServices(builder.Configuration);
 var (routes, clusters) = ProxyConfiguration.Build(services);
 builder.Services.AddReverseProxy().LoadFromMemory(routes, clusters);
+
+// AI shopping assistant, also in-process; it reads products through the Catalog service.
+builder.AddAssistantModule(services.Single(s => s.Name == "catalog").Address);
 
 builder.Services.AddHttpClient("health", c => c.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddHttpClient("warmup", c => c.Timeout = TimeSpan.FromSeconds(120));
@@ -61,17 +65,29 @@ builder.Services.AddRateLimiter(o =>
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0
         }));
+
+    // Each assistant message is a model call against a free quota, so limit it per signed-in user.
+    o.AddPolicy(ProxyConfiguration.AssistantRateLimit, http => RateLimitPartition.GetFixedWindowLimiter(
+        http.User.FindFirst(AppClaims.Subject)?.Value ?? ClientKey(http), _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 6,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        }));
 });
 
 var app = builder.Build();
 
 app.UseCors();
-app.UseRateLimiter();
+// After forwarded headers and authentication (in UseServiceDefaults), so limits key on the real client IP
+// behind the hosting proxy and can partition by signed-in user.
 app.UseServiceDefaults();
+app.UseRateLimiter();
 app.UseWebSockets();
 
 app.MapSystemEndpoints(services);
 app.MapIdentityEndpoints().RequireRateLimiting(ProxyConfiguration.AuthRateLimit);
+app.MapAssistantEndpoints().RequireRateLimiting(ProxyConfiguration.AssistantRateLimit);
 app.MapReverseProxy();
 
 await app.MigrateIdentityDatabaseAsync();

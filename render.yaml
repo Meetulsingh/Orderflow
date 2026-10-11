@@ -41,6 +41,7 @@ services:
       paths:
         - src/Gateway/**
         - src/Services/Identity/**
+        - src/Services/Assistant/**
         - src/BuildingBlocks/**
         - Directory.*.props
 

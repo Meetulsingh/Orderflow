@@ -45,6 +45,14 @@ Generate a random secret (any string of 32+ characters) and save it as **`JWT_SE
 [Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Maximum 256 }))
 ```
 
+### 1e. AI assistant key (optional, free)
+The shopping assistant runs on Google Gemini's free tier. No card is needed.
+1. Open <https://aistudio.google.com/apikey> and sign in with a Google account.
+2. Click **Create API key** and copy it.
+3. Save it as **`GEMINI_API_KEY`**.
+
+Without this key the app works normally and the **Ask AI** button stays hidden. Optional settings on the gateway: `ASSISTANT_MODEL` (default `gemini-flash-latest`), `ASSISTANT_DAILY_LIMIT` (default 300 requests a day), and `ASSISTANT_ENDPOINT` to use any other OpenAI-compatible provider.
+
 ---
 
 ## 2. Push the code to GitHub
@@ -71,6 +79,7 @@ GitHub Actions starts automatically and builds, tests and runs the end-to-end sm
    | `RABBITMQ_URL` | from step 1b |
    | `REDIS_URL` | from step 1c |
    | `JWT_SECRET` | from step 1d |
+   | `GEMINI_API_KEY` | from step 1e (optional) |
 
 3. **Apply the Blueprint.** Go to **New → Blueprint**, connect your `orderflow` repository and click **Apply**. Render reads [`render.yaml`](../render.yaml) and creates:
 

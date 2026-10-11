@@ -11,6 +11,7 @@ public static class ProxyConfiguration
 {
     public const string ApiRateLimit = "api";
     public const string AuthRateLimit = "auth";
+    public const string AssistantRateLimit = "assistant";
 
     public static IReadOnlyList<DownstreamService> LoadServices(IConfiguration config) =>
     [

@@ -4,7 +4,7 @@ import { Observable, map } from 'rxjs';
 import { API_URL } from './config';
 import { SILENT_ERRORS } from './http-context';
 import {
-  Category, DeadLetter, EventLog, EventStats, NotificationMessage, Order, OrderStats, PagedResult,
+  AssistantReply, AssistantTurn, Category, DeadLetter, EventLog, EventStats, NotificationMessage, Order, OrderStats, PagedResult,
   PaymentRecord, PlaceOrderRequest, Product, SystemHealth, UpsertProduct
 } from './models';
 
@@ -107,6 +107,19 @@ export class AdminApi {
 
   myNotifications(): Observable<NotificationMessage[]> {
     return this.http.get<NotificationMessage[]>(`${API_URL}/api/notifications/mine`, silent());
+  }
+}
+
+@Injectable({ providedIn: 'root' })
+export class AssistantApi {
+  private readonly http = inject(HttpClient);
+
+  status(): Observable<{ enabled: boolean }> {
+    return this.http.get<{ enabled: boolean }>(`${API_URL}/api/assistant/status`, silent());
+  }
+
+  chat(messages: AssistantTurn[]): Observable<AssistantReply> {
+    return this.http.post<AssistantReply>(`${API_URL}/api/assistant/chat`, { messages }, silent());
   }
 }
 
