@@ -20,7 +20,8 @@ public sealed class AssistantOptions
 
     public static AssistantOptions From(IConfiguration config) => new()
     {
-        ApiKey = config["GEMINI_API_KEY"] ?? config["Assistant:ApiKey"],
+        // ASSISTANT_API_KEY works for any provider; GEMINI_API_KEY is kept for the default Gemini setup.
+        ApiKey = config["ASSISTANT_API_KEY"] ?? config["GEMINI_API_KEY"] ?? config["Assistant:ApiKey"],
         Model = config["ASSISTANT_MODEL"] ?? config["Assistant:Model"] ?? DefaultModel,
         Endpoint = Uri.TryCreate(config["ASSISTANT_ENDPOINT"] ?? config["Assistant:Endpoint"], UriKind.Absolute, out var endpoint)
             ? endpoint

@@ -46,7 +46,7 @@ Generate a random secret (any string of 32+ characters) and save it as **`JWT_SE
 ```
 
 ### 1e. AI assistant key (optional, free)
-The shopping assistant runs on Google Gemini's free tier. No card is needed.
+The shopping assistant runs on any OpenAI-compatible provider. Google Gemini and Groq both have free tiers with no card; Groq's daily limits are much higher. For Groq set `ASSISTANT_API_KEY`, `ASSISTANT_ENDPOINT=https://api.groq.com/openai/v1/` and `ASSISTANT_MODEL=openai/gpt-oss-120b`. For Gemini:
 1. Open <https://aistudio.google.com/apikey> and sign in with a Google account.
 2. Click **Create API key** and copy it.
 3. Save it as **`GEMINI_API_KEY`**.
