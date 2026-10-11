@@ -53,6 +53,8 @@ public sealed class ShoppingAssistant(IChatClient chat, CatalogClient catalog, D
         }
         catch (ClientResultException ex) when (ex.Status == StatusCodes.Status429TooManyRequests)
         {
+            // The provider's message says which quota was hit (e.g. a model with no free-tier quota at all).
+            logger.LogWarning("Model provider rate-limited the assistant: {Message}", ex.Message);
             throw new AssistantUnavailableException("The assistant is busy right now (free-tier rate limit). Please try again in a minute.");
         }
         catch (ClientResultException ex)
