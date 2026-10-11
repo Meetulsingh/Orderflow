@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\BuildingBlocks\OrderFlow.ServiceDefaults\OrderFlow.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\..\Services\Identity\OrderFlow.Identity.API\OrderFlow.Identity.API.csproj" />
   </ItemGroup>
 
 </Project>

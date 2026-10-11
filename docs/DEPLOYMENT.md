@@ -77,8 +77,8 @@ GitHub Actions starts automatically and builds, tests and runs the end-to-end sm
    | Service | URL |
    | --- | --- |
    | Frontend | `https://meetul-orderflow.onrender.com` |
-   | API gateway | `https://meetul-orderflow-api.onrender.com` |
-   | Identity, Catalog, Ordering, Payment, Notification | `https://meetul-orderflow-<name>.onrender.com` |
+   | API gateway (also hosts the Identity module) | `https://meetul-orderflow-api.onrender.com` |
+   | Catalog, Ordering, Payment, Notification | `https://meetul-orderflow-<name>.onrender.com` |
 
 4. The first Docker builds take about 5–10 minutes. Each service applies its own database migrations and seeds demo data on first start.
 
@@ -102,7 +102,9 @@ node scripts/smoke-test.mjs https://meetul-orderflow-api.onrender.com
 
 ## Free-tier behaviour and limits
 
-- **Sleeping services.** Render spins a free service down after 15 minutes without inbound HTTP traffic and wakes it on the next request (about a minute). The gateway's `/api/system/warmup`, which the frontend calls on load and every 10 minutes while the tab is visible, wakes all six services in parallel. That matters for the payment and notification workers: they consume from RabbitMQ and get no HTTP traffic of their own.
+- **Sleeping services.** Render spins a free service down after 15 minutes without inbound HTTP traffic and wakes it on the next request (about a minute). The gateway's `/api/system/warmup`, which the frontend calls on load and every 10 minutes while the tab is visible, wakes every service in parallel. That matters for the payment and notification workers: they consume from RabbitMQ and get no HTTP traffic of their own.
+- **Fast sign-in.** Identity runs inside the gateway, so signing in only needs one service awake. If the gateway is still starting, the login and register buttons show "Waking up the live demo…" and retry automatically for up to two minutes instead of failing.
+- **Keeping the demo awake during the day.** A free [cron-job.org](https://cron-job.org) account can send a `HEAD` request to `https://meetul-orderflow-api.onrender.com/health` and `https://meetul-orderflow-catalog.onrender.com/health` with the schedule `*/10 10-18 * * *` (timezone Asia/Kolkata). That keeps sign-in and the catalog instant from 10:00 to 19:00 every day for about 560 of the 750 free hours. Use `HEAD`, not `GET`: while a service is waking, Render answers with a large HTML page that cron-job.org rejects.
 - **Render:** 750 free instance-hours per month across all services. Sleeping services don't consume hours.
 - **Neon:** compute scales to zero when idle. The first query after a pause takes a second or two, and the services retry during startup.
 - **CloudAMQP Little Lemur:** a limited number of connections and messages per month, plenty for a portfolio demo. Prefetch is kept low.

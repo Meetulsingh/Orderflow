@@ -15,7 +15,8 @@ previews:
   generation: off
 
 services:
-  # ---------------------------------------------------------------- API Gateway (YARP)
+  # ---------------------------------------------------------------- API Gateway (YARP) + Identity module
+  # Identity runs inside the gateway so signing in only has to wake one free-tier service.
   - type: web
     name: meetul-orderflow-api
     runtime: docker
@@ -26,8 +27,6 @@ services:
     healthCheckPath: /health
     envVars:
       - fromGroup: orderflow-secrets
-      - key: Services__Identity
-        value: https://meetul-orderflow-identity.onrender.com
       - key: Services__Catalog
         value: https://meetul-orderflow-catalog.onrender.com
       - key: Services__Ordering
@@ -41,22 +40,6 @@ services:
     buildFilter:
       paths:
         - src/Gateway/**
-        - src/BuildingBlocks/**
-        - Directory.*.props
-
-  # ---------------------------------------------------------------- Identity service
-  - type: web
-    name: meetul-orderflow-identity
-    runtime: docker
-    plan: free
-    region: singapore
-    dockerfilePath: ./src/Services/Identity/OrderFlow.Identity.API/Dockerfile
-    dockerContext: .
-    healthCheckPath: /health
-    envVars:
-      - fromGroup: orderflow-secrets
-    buildFilter:
-      paths:
         - src/Services/Identity/**
         - src/BuildingBlocks/**
         - Directory.*.props

@@ -50,7 +50,8 @@ const PASSWORD_RULES = [
         @if (error()) { <div class="alert alert-danger"><app-icon name="alert-circle" /> {{ error() }}</div> }
 
         <button class="btn btn-primary btn-lg btn-block" type="submit" [disabled]="loading()">
-          @if (loading()) { <span class="spinner"></span> Creating account… } @else { Create account <app-icon name="arrow-right" [size]="16" /> }
+          @if (auth.waking()) { <span class="spinner"></span> Waking up the live demo… }
+          @else if (loading()) { <span class="spinner"></span> Creating account… } @else { Create account <app-icon name="arrow-right" [size]="16" /> }
         </button>
       </form>
 
@@ -70,7 +71,7 @@ const PASSWORD_RULES = [
   `
 })
 export class RegisterPage {
-  private readonly auth = inject(AuthService);
+  protected readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
 

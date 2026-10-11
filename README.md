@@ -22,7 +22,7 @@ flowchart LR
     UI["Angular 22 SPA<br/>(signals, standalone, zoneless)"] -- HTTPS / JWT --> GW
     UI <-. "SignalR (WebSockets)" .-> GW
     GW["API Gateway<br/>YARP Â· JWT Â· rate limiting Â· CORS"]
-    GW --> ID["Identity API<br/>JWT + refresh tokens"]
+    GW --- ID["Identity module (in-process)<br/>JWT + refresh tokens"]
     GW --> CAT["Catalog API<br/>cache-aside"]
     GW --> ORD["Ordering API<br/>CQRS Â· MediatR Â· outbox Â· SignalR hub"]
     GW --> PAY["Payment Worker"]
@@ -70,7 +70,7 @@ If the payment worker crashes on every attempt (try the **Chaos â†’ DLQ** o
 | Area | What's implemented |
 | --- | --- |
 | **Gateway** | YARP reverse proxy, JWT validation per route, role-based policies, per-IP fixed-window rate limiting (stricter on `/api/auth`), CORS, WebSocket proxying, aggregated health endpoint, warm-up endpoint for sleeping free-tier services |
-| **Identity** | Registration and login, PBKDF2 password hashing, short-lived JWT access tokens, **rotating refresh tokens with reuse detection** (a reused token revokes every session), seeded demo accounts |
+| **Identity** | Registration and login, PBKDF2 password hashing, short-lived JWT access tokens, **rotating refresh tokens with reuse detection** (a reused token revokes every session), seeded demo accounts. Hosted in-process by the gateway (own schema and migrations) so sign-in needs one cold start on free hosting, not two |
 | **Catalog** | Search, filter, sort and paging; **Redis cache-aside** with generation-based invalidation (`X-Cache: HIT/MISS` header); admin CRUD; idempotent stock deduction on `PaymentSucceeded`; `ProductStockLow` events |
 | **Ordering** | **CQRS** with MediatR (commands and queries, validation and logging pipeline behaviors); DDD aggregate with a guarded state machine; **EF Core transactional outbox**; idempotency keys; optimistic concurrency (`xmin`); typed `HttpClient` with retry, circuit-breaker and timeout policies; **SignalR hub** with per-user and admin groups |
 | **Payment worker** | Simulated gateway with approve, decline and chaos scenarios; idempotent via a unique index (never charges twice) |
@@ -107,7 +107,7 @@ src/
   BuildingBlocks/
     OrderFlow.Contracts/         integration events shared by all services
     OrderFlow.ServiceDefaults/   auth, health, messaging, DB, problem details (one line per service)
-  Gateway/OrderFlow.Gateway/     YARP gateway
+  Gateway/OrderFlow.Gateway/     YARP gateway (hosts the Identity module)
   Services/
     Identity/  Catalog/  Ordering/  Payment/  Notification/
 tests/OrderFlow.Ordering.Tests/  domain and validation unit tests

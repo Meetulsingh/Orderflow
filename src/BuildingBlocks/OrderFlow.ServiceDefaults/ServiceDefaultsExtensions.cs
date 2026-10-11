@@ -154,7 +154,7 @@ public static class ServiceDefaultsExtensions
         // Readiness: database, broker and cache connectivity, rendered as JSON for the admin dashboard.
         app.MapHealthChecks("/health/ready", new HealthCheckOptions
         {
-            Predicate = c => c.Tags.Contains("ready") || c.Tags.Contains("live"),
+            Predicate = IsReadinessCheck,
             ResponseWriter = WriteHealthJson
         }).AllowAnonymous();
 
@@ -165,10 +165,13 @@ public static class ServiceDefaultsExtensions
         return app;
     }
 
-    private static Task WriteHealthJson(HttpContext context, HealthReport report)
-    {
-        context.Response.ContentType = "application/json";
-        var payload = new
+    /// <summary>Checks included in the readiness report.</summary>
+    public static bool IsReadinessCheck(HealthCheckRegistration check) =>
+        check.Tags.Contains("ready") || check.Tags.Contains("live");
+
+    /// <summary>JSON shape of the readiness report, shared by <c>/health/ready</c> and the gateway's aggregated health.</summary>
+    public static JsonElement HealthReportJson(HealthReport report) =>
+        JsonSerializer.SerializeToElement(new
         {
             status = report.Status.ToString(),
             durationMs = Math.Round(report.TotalDuration.TotalMilliseconds, 1),
@@ -179,7 +182,11 @@ public static class ServiceDefaultsExtensions
                 durationMs = Math.Round(e.Value.Duration.TotalMilliseconds, 1),
                 description = e.Value.Description ?? e.Value.Exception?.Message
             })
-        };
-        return context.Response.WriteAsync(JsonSerializer.Serialize(payload, JsonSerializerOptions.Web));
+        }, JsonSerializerOptions.Web);
+
+    private static Task WriteHealthJson(HttpContext context, HealthReport report)
+    {
+        context.Response.ContentType = "application/json";
+        return context.Response.WriteAsync(HealthReportJson(report).GetRawText());
     }
 }

@@ -1,9 +1,28 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { MonoTypeOperatorFunction, firstValueFrom, retry, throwError, timer } from 'rxjs';
 import { SystemApi } from './api.service';
 import { ServiceHealth } from './models';
 
 export type WarmupPhase = 'idle' | 'waking' | 'ready' | 'degraded';
+
+/** What the browser sees while the host starts a sleeping service: no response at all, or a proxy error. */
+const WAKING_STATUSES = new Set([0, 502, 503, 504]);
+
+/**
+ * Retries a request for up to two minutes while the backend is cold-starting, so the first click after
+ * an idle period still succeeds instead of showing an error. Real errors (400, 401, 409, …) fail at once.
+ */
+export function retryWhileWaking<T>(onWaiting?: () => void): MonoTypeOperatorFunction<T> {
+  return retry({
+    count: 24,
+    delay: (error: unknown, attempt: number) => {
+      if (!(error instanceof HttpErrorResponse) || !WAKING_STATUSES.has(error.status)) return throwError(() => error);
+      if (attempt === 1) onWaiting?.();
+      return timer(5000);
+    }
+  });
+}
 
 /**
  * Free-tier hosting puts idle services to sleep. On load the app asks the gateway to wake every
@@ -17,7 +36,7 @@ export class WarmupService {
   readonly phase = signal<WarmupPhase>('idle');
   readonly services = signal<ServiceHealth[]>([]);
   readonly readyCount = computed(() => this.services().filter(s => s.status === 'Healthy').length);
-  readonly total = computed(() => Math.max(this.services().length, 6));
+  readonly total = computed(() => this.services().length || 5);
   readonly dismissed = signal(false);
 
   start(): void {

@@ -34,7 +34,6 @@ dotnet build (Join-Path $root 'OrderFlow.slnx') -v q --nologo | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
 
 $services = @(
-    @{ Name = 'identity';     Path = 'src/Services/Identity/OrderFlow.Identity.API' },
     @{ Name = 'catalog';      Path = 'src/Services/Catalog/OrderFlow.Catalog.API' },
     @{ Name = 'ordering';     Path = 'src/Services/Ordering/OrderFlow.Ordering.API' },
     @{ Name = 'payment';      Path = 'src/Services/Payment/OrderFlow.Payment.Worker' },

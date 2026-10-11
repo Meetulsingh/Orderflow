@@ -5,6 +5,7 @@ import { Observable, catchError, finalize, map, of, shareReplay, throwError } fr
 import { API_URL } from '../config';
 import { AuthResponse, User } from '../models';
 import { SILENT_ERRORS, SKIP_AUTH } from '../http-context';
+import { retryWhileWaking } from '../warmup.service';
 
 interface Session {
   accessToken: string;
@@ -23,6 +24,9 @@ export class AuthService {
   private readonly session = signal<Session | null>(this.restore());
   private refreshInFlight$: Observable<string> | null = null;
 
+  /** True while a sign-in is being retried because the backend is still waking up. */
+  readonly waking = signal(false);
+
   readonly user = computed(() => this.session()?.user ?? null);
   readonly isAuthenticated = computed(() => this.session() !== null);
   readonly isAdmin = computed(() => this.session()?.user.role === 'Admin');
@@ -39,13 +43,21 @@ export class AuthService {
   login(email: string, password: string): Observable<User> {
     return this.http
       .post<AuthResponse>(`${API_URL}/api/auth/login`, { email, password }, { context: skipAuth() })
-      .pipe(map(r => this.store(r)));
+      .pipe(
+        retryWhileWaking(() => this.waking.set(true)),
+        finalize(() => this.waking.set(false)),
+        map(r => this.store(r))
+      );
   }
 
   register(fullName: string, email: string, password: string): Observable<User> {
     return this.http
       .post<AuthResponse>(`${API_URL}/api/auth/register`, { fullName, email, password }, { context: skipAuth() })
-      .pipe(map(r => this.store(r)));
+      .pipe(
+        retryWhileWaking(() => this.waking.set(true)),
+        finalize(() => this.waking.set(false)),
+        map(r => this.store(r))
+      );
   }
 
   /** Rotates the refresh token. Concurrent callers share a single in-flight request. */

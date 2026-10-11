@@ -37,7 +37,6 @@ jobs:
           ASPNETCORE_ENVIRONMENT: Development
         run: |
           start() { nohup dotnet run --no-build -c Release --project "$1" --launch-profile http > "/tmp/$(basename $1).log" 2>&1 & }
-          start src/Services/Identity/OrderFlow.Identity.API
           start src/Services/Catalog/OrderFlow.Catalog.API
           start src/Services/Ordering/OrderFlow.Ordering.API
           start src/Services/Payment/OrderFlow.Payment.Worker

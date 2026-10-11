@@ -45,7 +45,7 @@ import { Icon } from '../../shared/icon';
           @if (warmup.phase() === 'waking') {
             <div class="alert alert-info waking">
               <span class="spinner"></span>
-              <span>Waking up backend services ({{ warmup.readyCount() }}/{{ warmup.total() }} ready). Free-tier hosting sleeps when idle, so the first request can take up to a minute.</span>
+              <span>Waking up backend services ({{ warmup.readyCount() }}/{{ warmup.total() }} ready). Free-tier hosting sleeps when idle; you can sign in now and it will go through as soon as the gateway is up (usually under a minute).</span>
             </div>
           }
         </div>

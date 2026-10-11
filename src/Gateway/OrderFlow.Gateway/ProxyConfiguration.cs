@@ -14,7 +14,6 @@ public static class ProxyConfiguration
 
     public static IReadOnlyList<DownstreamService> LoadServices(IConfiguration config) =>
     [
-        new("identity", Resolve(config, "Identity", "http://localhost:5101")),
         new("catalog", Resolve(config, "Catalog", "http://localhost:5102")),
         new("ordering", Resolve(config, "Ordering", "http://localhost:5103")),
         new("payment", Resolve(config, "Payment", "http://localhost:5104")),
@@ -33,7 +32,6 @@ public static class ProxyConfiguration
     {
         var routes = new List<RouteConfig>
         {
-            Route("auth", "identity", "/api/auth/{**rest}", rateLimit: AuthRateLimit),
             Route("products", "catalog", "/api/products/{**rest}"),
             Route("orders", "ordering", "/api/orders/{**rest}", AppPolicies.Authenticated),
             Route("admin-orders", "ordering", "/api/admin/orders/{**rest}", AppPolicies.Admin),

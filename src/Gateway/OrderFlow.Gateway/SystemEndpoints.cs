@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using OrderFlow.ServiceDefaults;
 
 namespace OrderFlow.Gateway;
 
@@ -14,12 +16,10 @@ public static class SystemEndpoints
     {
         var group = app.MapGroup("/api/system").WithTags("System");
 
-        group.MapGet("/health", async (IHttpClientFactory factory, CancellationToken ct) =>
+        group.MapGet("/health", async (IHttpClientFactory factory, HealthCheckService local, CancellationToken ct) =>
         {
             var client = factory.CreateClient("health");
-            var results = await Task.WhenAll(services.Select(s => Probe(client, s, ct)));
-            var gateway = new ServiceHealth("gateway", "Healthy", 0, null);
-            var all = results.Prepend(gateway).ToList();
+            var all = (await Task.WhenAll(services.Select(s => Probe(client, s, ct)).Prepend(CheckSelf(local, ct)))).ToList();
             var overall = all.All(r => r.Status == "Healthy") ? "Healthy"
                 : all.Any(r => r.Status == "Healthy") ? "Degraded" : "Unhealthy";
             return Results.Ok(new { status = overall, checkedAtUtc = DateTime.UtcNow, services = all });
@@ -52,6 +52,14 @@ public static class SystemEndpoints
             }
             return Results.Accepted();
         }).WithSummary("Wake up sleeping services (free hosting tiers spin down when idle)");
+    }
+
+    /// <summary>The gateway hosts the identity module, so its own database and broker checks count too.</summary>
+    private static async Task<ServiceHealth> CheckSelf(HealthCheckService health, CancellationToken ct)
+    {
+        var report = await health.CheckHealthAsync(ServiceDefaultsExtensions.IsReadinessCheck, ct);
+        return new ServiceHealth("gateway", report.Status.ToString(),
+            Math.Round(report.TotalDuration.TotalMilliseconds, 0), ServiceDefaultsExtensions.HealthReportJson(report));
     }
 
     private static async Task<ServiceHealth> Probe(HttpClient client, DownstreamService service, CancellationToken ct)

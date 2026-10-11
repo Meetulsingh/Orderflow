@@ -12,8 +12,7 @@ import { TimeAgoPipe } from '../../shared/time-ago.pipe';
 type Tab = 'events' | 'emails' | 'payments';
 
 const SERVICE_META: Record<string, { label: string; icon: string; tech: string }> = {
-  gateway: { label: 'API Gateway', icon: 'shield', tech: 'YARP · JWT · rate limiting' },
-  identity: { label: 'Identity', icon: 'lock', tech: 'JWT issuance · refresh tokens' },
+  gateway: { label: 'API Gateway + Identity', icon: 'shield', tech: 'YARP · JWT issuance · rate limiting' },
   catalog: { label: 'Catalog', icon: 'package', tech: 'PostgreSQL · Redis cache' },
   ordering: { label: 'Ordering', icon: 'layers', tech: 'CQRS · outbox · SignalR' },
   payment: { label: 'Payment Worker', icon: 'card', tech: 'RabbitMQ consumer' },
