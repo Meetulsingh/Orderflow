@@ -22,6 +22,10 @@ builder.AddAssistantModule(services.Single(s => s.Name == "catalog").Address);
 builder.Services.AddHttpClient("health", c => c.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddHttpClient("warmup", c => c.Timeout = TimeSpan.FromSeconds(120));
 
+// Keeps Catalog awake whenever the gateway is, so the catalog page never waits on a cold start.
+builder.Services.AddSingleton(services);
+builder.Services.AddHostedService<KeepWarmService>();
+
 // ---- CORS -----------------------------------------------------------------------------
 var origins = (builder.Configuration["CORS_ORIGINS"] ?? builder.Configuration["Cors:Origins"] ?? "http://localhost:4200")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
