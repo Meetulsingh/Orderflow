@@ -39,26 +39,29 @@ public sealed class BrevoEmailSender(HttpClient http, EmailOptions options, ILog
 {
     public async Task<EmailResult> SendAsync(EmailMessage message, CancellationToken ct)
     {
-        var headers = new Dictionary<string, string>();
+        var payload = new Dictionary<string, object>
+        {
+            ["sender"] = new { name = options.FromName, email = options.FromEmail },
+            ["to"] = new[] { new { email = message.ToEmail, name = message.ToName } },
+            ["subject"] = message.Subject,
+            ["htmlContent"] = message.Html,
+            ["textContent"] = message.Text,
+            ["tags"] = new[] { message.Tag }
+        };
+        // Brevo rejects an empty "headers" object, so only send it when there is a header to set.
         if (message.UnsubscribeUrl is not null)
         {
             // Lets Gmail show its own "Unsubscribe" button (one-click, RFC 8058).
-            headers["List-Unsubscribe"] = $"<{message.UnsubscribeUrl}>";
-            headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click";
+            payload["headers"] = new Dictionary<string, string>
+            {
+                ["List-Unsubscribe"] = $"<{message.UnsubscribeUrl}>",
+                ["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
+            };
         }
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.brevo.com/v3/smtp/email")
         {
-            Content = JsonContent.Create(new
-            {
-                sender = new { name = options.FromName, email = options.FromEmail },
-                to = new[] { new { email = message.ToEmail, name = message.ToName } },
-                subject = message.Subject,
-                htmlContent = message.Html,
-                textContent = message.Text,
-                headers,
-                tags = new[] { message.Tag }
-            })
+            Content = JsonContent.Create(payload)
         };
         request.Headers.Add("api-key", options.BrevoApiKey);
 
