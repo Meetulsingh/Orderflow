@@ -43,10 +43,22 @@ public sealed class DeadLetterEntry
     public DateTime FaultedAtUtc { get; init; }
 }
 
+/// <summary>One campaign email to one address: makes a redelivered campaign event resume instead of re-sending.</summary>
+public sealed class CampaignDelivery
+{
+    public Guid CampaignId { get; init; }
+    public required string Recipient { get; init; }
+    public required string Status { get; init; }
+    public string? ProviderMessageId { get; init; }
+    public string? Error { get; init; }
+    public DateTime SentAtUtc { get; init; } = DateTime.UtcNow;
+}
+
 public sealed class NotificationDbContext(DbContextOptions<NotificationDbContext> options) : DbContext(options)
 {
     public const string Schema = "notification";
 
+    public DbSet<CampaignDelivery> CampaignDeliveries => Set<CampaignDelivery>();
     public DbSet<EventLogEntry> EventLogs => Set<EventLogEntry>();
     public DbSet<NotificationMessage> Notifications => Set<NotificationMessage>();
     public DbSet<DeadLetterEntry> DeadLetters => Set<DeadLetterEntry>();
@@ -54,6 +66,16 @@ public sealed class NotificationDbContext(DbContextOptions<NotificationDbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
+
+        modelBuilder.Entity<CampaignDelivery>(e =>
+        {
+            e.ToTable("campaign_deliveries");
+            e.HasKey(x => new { x.CampaignId, x.Recipient });
+            e.Property(x => x.Recipient).HasMaxLength(256);
+            e.Property(x => x.Status).HasMaxLength(16);
+            e.Property(x => x.ProviderMessageId).HasMaxLength(200);
+            e.Property(x => x.Error).HasMaxLength(1000);
+        });
 
         modelBuilder.Entity<EventLogEntry>(e =>
         {

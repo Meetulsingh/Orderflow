@@ -82,6 +82,9 @@ export interface Order {
   customerName: string;
   customerEmail: string;
   status: OrderStatus;
+  subtotal: number;
+  discount: number;
+  couponCode?: string | null;
   total: number;
   paymentScenario: PaymentScenario;
   cardLast4: string;
@@ -98,6 +101,15 @@ export interface PlaceOrderRequest {
   items: { productId: string; quantity: number }[];
   shippingAddress: ShippingAddress;
   payment: { scenario: PaymentScenario; cardLast4: string };
+  couponCode?: string | null;
+}
+
+/** A weekly deals coupon: percentOff applies to productIds only, until expiresAtUtc. */
+export interface Coupon {
+  code: string;
+  percentOff: number;
+  productIds: string[];
+  expiresAtUtc: string;
 }
 
 export interface OrderStats {

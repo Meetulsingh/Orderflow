@@ -9,10 +9,24 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
     public const string Schema = "ordering";
 
     public DbSet<Order> Orders => Set<Order>();
+    public DbSet<Coupon> Coupons => Set<Coupon>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
+
+        modelBuilder.Entity<Coupon>(e =>
+        {
+            e.ToTable("coupons");
+            e.HasKey(c => c.Id);
+            e.Property(c => c.Id).ValueGeneratedNever();
+            e.Property(c => c.Code).HasMaxLength(32);
+            e.HasIndex(c => c.Code).IsUnique();
+            // One coupon per campaign (e.g. per ISO week): a retried trigger can't create a second one.
+            e.Property(c => c.CampaignKey).HasMaxLength(64);
+            e.HasIndex(c => c.CampaignKey).IsUnique();
+            e.HasIndex(c => c.ExpiresAtUtc);
+        });
 
         modelBuilder.Entity<Order>(e =>
         {
@@ -30,6 +44,9 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
             e.Property(o => o.CardLast4).HasMaxLength(4);
             e.Property(o => o.TransactionReference).HasMaxLength(64);
             e.Property(o => o.FailureReason).HasMaxLength(500);
+            e.Property(o => o.Subtotal).HasPrecision(12, 2);
+            e.Property(o => o.Discount).HasPrecision(12, 2);
+            e.Property(o => o.CouponCode).HasMaxLength(32);
             e.Property(o => o.Total).HasPrecision(12, 2);
             // Optimistic concurrency via PostgreSQL's xmin system column.
             e.Property(o => o.Version).IsRowVersion();

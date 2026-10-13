@@ -37,6 +37,8 @@ public static class ProxyConfiguration
             Route("orders", "ordering", "/api/orders/{**rest}", AppPolicies.Authenticated),
             Route("admin-orders", "ordering", "/api/admin/orders/{**rest}", AppPolicies.Admin),
             Route("order-hub", "ordering", "/hubs/{**rest}", AppPolicies.Authenticated, rateLimit: null),
+            // Public: the catalog shows this week's deal badges; validating a code requires sign-in (enforced by Ordering).
+            Route("coupons", "ordering", "/api/coupons/{**rest}"),
             Route("admin-payments", "payment", "/api/admin/payments/{**rest}", AppPolicies.Admin),
             Route("admin-events", "notification", "/api/admin/events/{**rest}", AppPolicies.Admin),
             Route("admin-dead-letters", "notification", "/api/admin/dead-letters/{**rest}", AppPolicies.Admin),

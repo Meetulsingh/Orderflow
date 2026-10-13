@@ -97,6 +97,10 @@ namespace OrderFlow.Identity.API.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_login_at_utc");
 
+                    b.Property<bool>("MarketingOptOut")
+                        .HasColumnType("boolean")
+                        .HasColumnName("marketing_opt_out");
+
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("text")

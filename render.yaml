@@ -6,6 +6,9 @@
 #   RABBITMQ_URL   CloudAMQP AMQP URL (amqps://…)
 #   REDIS_URL      Upstash Redis URL (rediss://…)
 #   JWT_SECRET     any random string of 32+ characters
+# Optional, for the real weekly deals email (otherwise it is only simulated):
+#   BREVO_API_KEY  Brevo API key (free plan, 300 emails/day, no card)
+#   MAIL_FROM_EMAIL  a sender address verified in Brevo
 #
 # Free web services can't receive private-network traffic, so services call each other over HTTPS
 # using their public onrender.com URLs. If Render assigns a different URL to a service (because the
@@ -109,6 +112,14 @@ services:
     healthCheckPath: /health
     envVars:
       - fromGroup: orderflow-secrets
+      # Weekly deals email: recipients come from the Identity module in the gateway; links and
+      # product images point at the frontend. BREVO_API_KEY and MAIL_FROM_EMAIL live in the secrets group.
+      - key: Services__Gateway
+        value: https://meetul-orderflow-api.onrender.com
+      - key: FRONTEND_URL
+        value: https://meetul-orderflow.onrender.com
+      - key: MAIL_FROM_NAME
+        value: OrderFlow Deals
     buildFilter:
       paths:
         - src/Services/Notification/**

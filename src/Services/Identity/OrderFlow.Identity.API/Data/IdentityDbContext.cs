@@ -11,6 +11,8 @@ public sealed class User
     public required string Role { get; set; }
     public DateTime CreatedAtUtc { get; init; } = DateTime.UtcNow;
     public DateTime? LastLoginAtUtc { get; set; }
+    /// <summary>Set when the customer clicks "Unsubscribe" in a deals email.</summary>
+    public bool MarketingOptOut { get; set; }
     public List<RefreshToken> RefreshTokens { get; init; } = [];
 }
 

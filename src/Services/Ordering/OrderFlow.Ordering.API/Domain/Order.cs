@@ -75,6 +75,9 @@ public sealed class Order
     public string CardLast4 { get; private init; } = string.Empty;
     public string? TransactionReference { get; private set; }
     public string? FailureReason { get; private set; }
+    public decimal Subtotal { get; private set; }
+    public decimal Discount { get; private set; }
+    public string? CouponCode { get; private init; }
     public decimal Total { get; private set; }
     public DateTime CreatedAtUtc { get; private init; }
     public DateTime UpdatedAtUtc { get; private set; }
@@ -89,8 +92,12 @@ public sealed class Order
         Guid userId, string email, string name, string? idempotencyKey, ShippingAddress address,
         string paymentScenario, string cardLast4,
         IEnumerable<(Guid ProductId, string Name, decimal UnitPrice, int Quantity)> lines,
-        DateTime nowUtc)
+        DateTime nowUtc,
+        Coupon? coupon = null)
     {
+        if (coupon is not null && !coupon.IsActive(nowUtc))
+            throw new BusinessRuleException($"Coupon {coupon.Code} has expired.");
+
         var order = new Order
         {
             OrderNumber = GenerateOrderNumber(nowUtc),
@@ -101,6 +108,7 @@ public sealed class Order
             ShippingAddress = address,
             PaymentScenario = paymentScenario,
             CardLast4 = cardLast4,
+            CouponCode = coupon?.Code,
             Status = OrderStatus.Pending,
             CreatedAtUtc = nowUtc,
             UpdatedAtUtc = nowUtc
@@ -112,7 +120,15 @@ public sealed class Order
         if (order._items.Count == 0)
             throw new BusinessRuleException("An order must contain at least one item.");
 
-        order.Total = order._items.Sum(i => i.LineTotal);
+        order.Subtotal = order._items.Sum(i => i.LineTotal);
+        if (coupon is not null)
+        {
+            var eligible = order._items.Where(i => coupon.AppliesTo(i.ProductId)).ToList();
+            if (eligible.Count == 0)
+                throw new BusinessRuleException($"Coupon {coupon.Code} doesn't apply to any product in your cart.");
+            order.Discount = eligible.Sum(i => (i.UnitPrice - coupon.DealPrice(i.UnitPrice)) * i.Quantity);
+        }
+        order.Total = order.Subtotal - order.Discount;
         order._history.Add(new OrderStatusChange(OrderStatus.Pending, "Order placed", nowUtc));
         return order;
     }

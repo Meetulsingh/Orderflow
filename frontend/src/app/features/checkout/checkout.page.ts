@@ -2,11 +2,13 @@ import { CurrencyPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { OrdersApi } from '../../core/api.service';
+import { CouponsApi, OrdersApi } from '../../core/api.service';
+import { dealPrice, formatDealEnd } from '../../core/deals';
+import { retryWhileWaking } from '../../core/warmup.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { CartStore } from '../../core/cart.store';
 import { problemMessage } from '../../core/error.interceptor';
-import { PaymentScenario } from '../../core/models';
+import { Coupon, PaymentScenario } from '../../core/models';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
 import { ProductArt } from '../../shared/product-art';
@@ -177,7 +179,7 @@ const SCENARIOS: { id: PaymentScenario; title: string; desc: string; icon: strin
                     <div class="nav-row">
                       <button type="button" class="btn btn-ghost" (click)="goTo(1)"><app-icon name="arrow-left" [size]="16" /> Back</button>
                       <button type="button" class="btn btn-primary btn-lg" (click)="placeOrder()" [disabled]="placing()">
-                        @if (placing()) { <span class="spinner"></span> Placing order… } @else { <app-icon name="lock" [size]="16" /> Pay {{ cart.subtotal() | currency }} }
+                        @if (placing()) { <span class="spinner"></span> Placing order… } @else { <app-icon name="lock" [size]="16" /> Pay {{ total() | currency }} }
                       </button>
                     </div>
                   </div>
@@ -194,8 +196,33 @@ const SCENARIOS: { id: PaymentScenario; title: string; desc: string; icon: strin
               }
               <hr class="divider" />
               <div class="row-between small"><span class="muted">Subtotal</span><span>{{ cart.subtotal() | currency }}</span></div>
+              @if (coupon(); as c) {
+                <div class="row-between small discount">
+                  <span>Coupon <span class="mono strong">{{ c.code }}</span> (−{{ c.percentOff }}%)</span>
+                  <span>−{{ discount() | currency }}</span>
+                </div>
+              }
               <div class="row-between small"><span class="muted">Shipping</span><span class="badge badge-success">Free</span></div>
-              <div class="row-between total"><span>Total</span><span>{{ cart.subtotal() | currency }}</span></div>
+              <div class="row-between total"><span>Total</span><span>{{ total() | currency }}</span></div>
+
+              <div class="coupon-box">
+                @if (coupon(); as c) {
+                  <div class="row-between small">
+                    <span class="applied"><app-icon name="check-circle" [size]="15" /> {{ c.code }} applied, ends {{ couponEnds() }}</span>
+                    <button class="btn btn-ghost btn-sm" (click)="removeCoupon()">Remove</button>
+                  </div>
+                } @else {
+                  <label class="xs muted strong" for="coupon">Coupon code</label>
+                  <div class="row">
+                    <input id="coupon" class="input mono grow" placeholder="DEALS-XXXXX" maxlength="32"
+                      [value]="couponInput()" (input)="couponInput.set($any($event.target).value)" (keyup.enter)="applyCoupon()" />
+                    <button class="btn" (click)="applyCoupon()" [disabled]="checkingCoupon() || !couponInput().trim()">
+                      @if (checkingCoupon()) { <span class="spinner"></span> } @else { Apply }
+                    </button>
+                  </div>
+                  @if (couponError()) { <span class="xs error-text">{{ couponError() }}</span> }
+                }
+              </div>
               <div class="alert alert-info xs">
                 <app-icon name="info" [size]="16" />
                 <span>Prices and stock are re-validated server-side. Your request returns <b>202 Accepted</b> instantly while payment runs asynchronously.</span>
@@ -221,6 +248,11 @@ const SCENARIOS: { id: PaymentScenario; title: string; desc: string; icon: strin
     .done .num { background: var(--success); color: #fff; }
     .layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
     .summary { position: sticky; top: calc(var(--topbar-h) + 20px); }
+    .discount { color: var(--success); font-weight: 600; }
+    .coupon-box { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px dashed var(--border); }
+    .coupon-box .input { height: 38px; text-transform: uppercase; }
+    .applied { display: inline-flex; align-items: center; gap: 6px; color: var(--success); font-weight: 600; }
+    .error-text { color: var(--danger); }
     .total { font-size: 1.15rem; font-weight: 750; }
     .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 210px; }
     .lines { padding: 4px 20px; }
@@ -262,6 +294,7 @@ const SCENARIOS: { id: PaymentScenario; title: string; desc: string; icon: strin
 })
 export class CheckoutPage {
   private readonly api = inject(OrdersApi);
+  private readonly coupons = inject(CouponsApi);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
@@ -301,6 +334,56 @@ export class CheckoutPage {
     expiry: ['12/29', [Validators.required, Validators.pattern(/^(0[1-9]|1[0-2])\/\d{2}$/)]],
     cvc: ['123', [Validators.required, Validators.pattern(/^\d{3,4}$/)]]
   });
+
+  // ---- Coupon (weekly deals) ----
+  protected readonly coupon = signal<Coupon | null>(null);
+  protected readonly couponInput = signal(this.cart.couponCode());
+  protected readonly couponError = signal<string | null>(null);
+  protected readonly checkingCoupon = signal(false);
+  protected readonly couponEnds = computed(() => (this.coupon() ? formatDealEnd(this.coupon()!.expiresAtUtc) : ''));
+  /** A preview only: the Ordering service recomputes the discount from authoritative prices. */
+  protected readonly discount = computed(() => {
+    const c = this.coupon();
+    if (!c) return 0;
+    return this.cart.lines()
+      .filter(l => c.productIds.includes(l.productId))
+      .reduce((sum, l) => sum + (l.price - dealPrice(l.price, c.percentOff)) * l.quantity, 0);
+  });
+  protected readonly total = computed(() => Math.round((this.cart.subtotal() - this.discount()) * 100) / 100);
+
+  constructor() {
+    // A code saved from the deals email link is applied automatically.
+    if (this.cart.couponCode()) this.applyCoupon();
+  }
+
+  applyCoupon() {
+    const code = this.couponInput().trim().toUpperCase();
+    if (!code) return;
+    this.checkingCoupon.set(true);
+    this.couponError.set(null);
+    this.coupons.check(code).pipe(retryWhileWaking()).subscribe({
+      next: c => {
+        this.checkingCoupon.set(false);
+        if (!this.cart.lines().some(l => c.productIds.includes(l.productId))) {
+          this.couponError.set(`${c.code} is for this week's deal products only, and none of them are in your cart.`);
+          return;
+        }
+        this.coupon.set(c);
+        this.cart.couponCode.set(c.code);
+      },
+      error: err => {
+        this.checkingCoupon.set(false);
+        this.couponError.set(problemMessage(err));
+        this.cart.couponCode.set('');
+      }
+    });
+  }
+
+  removeCoupon() {
+    this.coupon.set(null);
+    this.couponInput.set('');
+    this.cart.couponCode.set('');
+  }
 
   private readonly cardDigits = signal(this.payment.controls.cardNumber.value.replace(/\D/g, ''));
   protected readonly maskedCard = computed(() => {
@@ -354,13 +437,15 @@ export class CheckoutPage {
         {
           items: this.cart.lines().map(l => ({ productId: l.productId, quantity: l.quantity })),
           shippingAddress: { ...s, line2: s.line2 || null },
-          payment: { scenario: this.scenario(), cardLast4: digits.slice(-4) }
+          payment: { scenario: this.scenario(), cardLast4: digits.slice(-4) },
+          couponCode: this.coupon()?.code ?? null
         },
         this.idempotencyKey
       )
       .subscribe({
         next: order => {
           this.cart.clear();
+          this.cart.couponCode.set('');
           this.idempotencyKey = crypto.randomUUID();
           this.toast.success(`Order ${order.orderNumber} placed`, 'Payment is being processed asynchronously — watch it update live.');
           this.router.navigate(['/orders'], { queryParams: { highlight: order.id } });

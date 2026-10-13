@@ -103,6 +103,10 @@ const PIPELINE: { key: string; label: string; icon: string }[] = [
                     @for (item of o.items; track item.productId) {
                       <div class="row-between small item"><span>{{ item.quantity }} × {{ item.productName }}</span><span class="strong">{{ item.lineTotal | currency }}</span></div>
                     }
+                    @if (o.discount > 0) {
+                      <div class="row-between small item"><span class="muted">Subtotal</span><span>{{ o.subtotal | currency }}</span></div>
+                      <div class="row-between small item discount"><span>Coupon <span class="mono">{{ o.couponCode }}</span></span><span>−{{ o.discount | currency }}</span></div>
+                    }
                     <div class="row-between total-row"><span>Total</span><span>{{ o.total | currency }}</span></div>
                   </div>
                   <div class="col">
@@ -170,6 +174,7 @@ const PIPELINE: { key: string; label: string; icon: string }[] = [
     h4 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin-bottom: 10px; }
     .item { padding: 6px 0; border-bottom: 1px dashed var(--border); }
     .total-row { padding-top: 10px; font-weight: 700; }
+    .discount { color: var(--success); font-weight: 600; }
     .mt { margin-top: 10px; }
     .timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; position: relative; }
     .timeline::before { content: ''; position: absolute; left: 5px; top: 6px; bottom: 6px; width: 2px; background: var(--border); }

@@ -6,6 +6,7 @@ import { AdminApi, OrdersApi, SystemApi } from '../../core/api.service';
 import {
   DeadLetter, EventLog, EventStats, NotificationMessage, OrderStats, PaymentRecord, Severity, SystemHealth
 } from '../../core/models';
+import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
 import { TimeAgoPipe } from '../../shared/time-ago.pipe';
 
@@ -39,6 +40,10 @@ const SERVICE_META: Record<string, { label: string; icon: string; tech: string }
           </label>
           <button class="btn btn-sm" (click)="refresh()" [disabled]="refreshing()">
             @if (refreshing()) { <span class="spinner small-spin"></span> } @else { <app-icon name="refresh" [size]="14" /> } Refresh
+          </button>
+          <button class="btn btn-sm btn-primary" (click)="sendDeals()" [disabled]="sendingDeals()"
+            title="Starts a new weekly deals campaign now: a coupon for 3 products, emailed to every customer">
+            @if (sendingDeals()) { <span class="spinner small-spin"></span> } @else { <app-icon name="mail" [size]="14" /> } Send weekly deals now
           </button>
         </div>
       </div>
@@ -310,7 +315,9 @@ export class AdminLogsPage implements OnInit {
   protected readonly openEvent = signal<string | null>(null);
   protected readonly autoRefresh = signal(true);
   protected readonly refreshing = signal(false);
+  protected readonly sendingDeals = signal(false);
   protected readonly tick = signal(0);
+  private readonly toast = inject(ToastService);
 
   protected readonly successRate = computed(() => {
     const s = this.stats();
@@ -335,6 +342,19 @@ export class AdminLogsPage implements OnInit {
     this.refreshing.set(true);
     this.loadHealth();
     this.refreshFast(() => this.refreshing.set(false));
+  }
+
+  sendDeals() {
+    this.sendingDeals.set(true);
+    this.admin.sendWeeklyDeals().subscribe({
+      next: () => {
+        this.sendingDeals.set(false);
+        this.toast.success('Weekly deals campaign started',
+          'A coupon is being created and emailed to customers. Watch the Event stream and Emails tabs.');
+        this.tab.set('emails');
+      },
+      error: () => this.sendingDeals.set(false)
+    });
   }
 
   setSeverity(s: Severity | '') {

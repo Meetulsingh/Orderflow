@@ -16,7 +16,8 @@ public sealed record PaymentDetails(string Scenario, string CardLast4);
 public sealed record PlaceOrderRequest(
     IReadOnlyList<PlaceOrderItem> Items,
     ShippingAddress ShippingAddress,
-    PaymentDetails Payment);
+    PaymentDetails Payment,
+    string? CouponCode = null);
 
 public sealed record PlaceOrderCommand(
     Guid UserId,
@@ -25,7 +26,8 @@ public sealed record PlaceOrderCommand(
     string? IdempotencyKey,
     IReadOnlyList<PlaceOrderItem> Items,
     ShippingAddress ShippingAddress,
-    PaymentDetails Payment) : IRequest<OrderDto>;
+    PaymentDetails Payment,
+    string? CouponCode = null) : IRequest<OrderDto>;
 
 public sealed class PlaceOrderCommandValidator : AbstractValidator<PlaceOrderCommand>
 {
@@ -34,6 +36,7 @@ public sealed class PlaceOrderCommandValidator : AbstractValidator<PlaceOrderCom
         RuleFor(x => x.UserId).NotEmpty();
         RuleFor(x => x.CustomerEmail).NotEmpty();
         RuleFor(x => x.IdempotencyKey).MaximumLength(64);
+        RuleFor(x => x.CouponCode).MaximumLength(32);
         RuleFor(x => x.Items).NotEmpty().WithMessage("Your cart is empty.")
             .Must(items => items.Count <= 50).WithMessage("An order can contain at most 50 lines.");
         RuleForEach(x => x.Items).ChildRules(item =>
@@ -116,8 +119,18 @@ public sealed class PlaceOrderHandler(
         }
 
         var now = clock.GetUtcNow().UtcDateTime;
+
+        // Prices and the discount are always computed here from authoritative data, never taken from the client.
+        Coupon? coupon = null;
+        if (!string.IsNullOrWhiteSpace(command.CouponCode))
+        {
+            var code = Coupon.Normalize(command.CouponCode);
+            coupon = await db.Coupons.AsNoTracking().SingleOrDefaultAsync(c => c.Code == code, ct)
+                ?? throw new BusinessRuleException($"Coupon {code} doesn't exist.");
+        }
+
         var order = Order.Create(command.UserId, command.CustomerEmail, command.CustomerName, command.IdempotencyKey,
-            command.ShippingAddress, command.Payment.Scenario, command.Payment.CardLast4, lines, now);
+            command.ShippingAddress, command.Payment.Scenario, command.Payment.CardLast4, lines, now, coupon);
 
         db.Orders.Add(order);
         await publisher.Publish(new OrderSubmitted(

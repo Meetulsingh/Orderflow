@@ -13,6 +13,9 @@ public sealed record OrderDto(
     string CustomerName,
     string CustomerEmail,
     OrderStatus Status,
+    decimal Subtotal,
+    decimal Discount,
+    string? CouponCode,
     decimal Total,
     string PaymentScenario,
     string CardLast4,
@@ -25,7 +28,8 @@ public sealed record OrderDto(
     DateTime UpdatedAtUtc)
 {
     public static OrderDto From(Order o) => new(
-        o.Id, o.OrderNumber, o.UserId, o.CustomerName, o.CustomerEmail, o.Status, o.Total,
+        o.Id, o.OrderNumber, o.UserId, o.CustomerName, o.CustomerEmail, o.Status,
+        o.Subtotal, o.Discount, o.CouponCode, o.Total,
         o.PaymentScenario, o.CardLast4, o.TransactionReference, o.FailureReason, o.ShippingAddress,
         o.Items.Select(i => new OrderItemDto(i.ProductId, i.ProductName, i.UnitPrice, i.Quantity, i.LineTotal)).ToList(),
         o.History.OrderBy(h => h.OccurredAtUtc).Select(h => new OrderStatusChangeDto(h.Status, h.Note, h.OccurredAtUtc)).ToList(),

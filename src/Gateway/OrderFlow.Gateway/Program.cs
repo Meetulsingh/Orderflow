@@ -2,6 +2,7 @@ using System.Threading.RateLimiting;
 using OrderFlow.Assistant;
 using OrderFlow.Gateway;
 using OrderFlow.Identity.API;
+using OrderFlow.Identity.API.Marketing;
 using OrderFlow.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,6 +11,7 @@ builder.AddServiceDefaults();
 
 // Identity is hosted in-process so signing in only has to wake this one service.
 builder.AddIdentityModule();
+builder.AddInternalApiKey();
 
 // ---- Reverse proxy (YARP) -------------------------------------------------------------
 var services = ProxyConfiguration.LoadServices(builder.Configuration);
@@ -90,7 +92,9 @@ app.UseRateLimiter();
 app.UseWebSockets();
 
 app.MapSystemEndpoints(services);
+app.MapCampaignTrigger(services);
 app.MapIdentityEndpoints().RequireRateLimiting(ProxyConfiguration.AuthRateLimit);
+app.MapMarketingEndpoints();
 app.MapAssistantEndpoints().RequireRateLimiting(ProxyConfiguration.AssistantRateLimit);
 app.MapReverseProxy();
 

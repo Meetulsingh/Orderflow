@@ -13,6 +13,7 @@ export interface CartLine {
 }
 
 const STORAGE_KEY = 'orderflow.cart';
+const COUPON_KEY = 'orderflow.coupon';
 export const MAX_QTY_PER_LINE = 20;
 
 /** Signal-based cart state, persisted to localStorage. */
@@ -22,6 +23,8 @@ export class CartStore {
 
   readonly lines = signal<CartLine[]>(this.restore());
   readonly drawerOpen = signal(false);
+  /** Coupon code to apply at checkout (set from the deals email link or typed in). */
+  readonly couponCode = signal<string>(this.read(COUPON_KEY) ?? '');
 
   readonly count = computed(() => this.lines().reduce((n, l) => n + l.quantity, 0));
   readonly subtotal = computed(() => this.lines().reduce((sum, l) => sum + l.price * l.quantity, 0));
@@ -32,6 +35,13 @@ export class CartStore {
       const lines = this.lines();
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(lines));
+      } catch { /* storage unavailable */ }
+    });
+    effect(() => {
+      const code = this.couponCode();
+      try {
+        if (code) localStorage.setItem(COUPON_KEY, code);
+        else localStorage.removeItem(COUPON_KEY);
       } catch { /* storage unavailable */ }
     });
   }
@@ -69,6 +79,14 @@ export class CartStore {
 
   clear(): void {
     this.lines.set([]);
+  }
+
+  private read(key: string): string | null {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
   }
 
   private restore(): CartLine[] {

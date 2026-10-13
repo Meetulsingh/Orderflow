@@ -4,7 +4,7 @@ import { Observable, map } from 'rxjs';
 import { API_URL } from './config';
 import { SILENT_ERRORS } from './http-context';
 import {
-  AssistantReply, AssistantTurn, Category, DeadLetter, EventLog, EventStats, NotificationMessage, Order, OrderStats, PagedResult,
+  AssistantReply, AssistantTurn, Category, Coupon, DeadLetter, EventLog, EventStats, NotificationMessage, Order, OrderStats, PagedResult,
   PaymentRecord, PlaceOrderRequest, Product, SystemHealth, UpsertProduct
 } from './models';
 
@@ -37,6 +37,11 @@ export class CatalogApi {
     return this.http.get<PagedResult<Product>>(this.base, { params, observe: 'response', ...silent() }).pipe(
       map(r => ({ data: r.body!, cache: (r.headers.get('X-Cache') as 'HIT' | 'MISS' | null) ?? null }))
     );
+  }
+
+  /** Specific products by id (used to show only this week's deal products). */
+  lookup(ids: string[]): Observable<Product[]> {
+    return this.http.post<Product[]>(`${this.base}/lookup`, { ids }, silent());
   }
 
   categories(): Observable<Category[]> {
@@ -81,6 +86,20 @@ export class OrdersApi {
 }
 
 @Injectable({ providedIn: 'root' })
+export class CouponsApi {
+  private readonly http = inject(HttpClient);
+
+  /** This week's deal, or null when none is running. */
+  active(): Observable<Coupon | null> {
+    return this.http.get<Coupon | null>(`${API_URL}/api/coupons/active`, silent());
+  }
+
+  check(code: string): Observable<Coupon> {
+    return this.http.get<Coupon>(`${API_URL}/api/coupons/${encodeURIComponent(code.trim())}`, silent());
+  }
+}
+
+@Injectable({ providedIn: 'root' })
 export class AdminApi {
   private readonly http = inject(HttpClient);
 
@@ -104,6 +123,11 @@ export class AdminApi {
 
   payments(): Observable<PaymentRecord[]> {
     return this.http.get<PaymentRecord[]>(`${API_URL}/api/admin/payments`, silent());
+  }
+
+  /** Starts a weekly deals campaign now (the same one the Monday schedule sends). */
+  sendWeeklyDeals(): Observable<{ campaignKey: string; status: string }> {
+    return this.http.post<{ campaignKey: string; status: string }>(`${API_URL}/api/system/campaigns/weekly-deals`, null);
   }
 
   myNotifications(): Observable<NotificationMessage[]> {

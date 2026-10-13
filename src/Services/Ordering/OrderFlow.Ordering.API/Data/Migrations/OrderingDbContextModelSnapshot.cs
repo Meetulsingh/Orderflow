@@ -242,6 +242,58 @@ namespace OrderFlow.Ordering.API.Data.Migrations
                     b.ToTable("outbox_state", "ordering");
                 });
 
+            modelBuilder.Entity("OrderFlow.Ordering.API.Domain.Coupon", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CampaignKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("campaign_key");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at_utc");
+
+                    b.Property<int>("PercentOff")
+                        .HasColumnType("integer")
+                        .HasColumnName("percent_off");
+
+                    b.PrimitiveCollection<List<Guid>>("ProductIds")
+                        .IsRequired()
+                        .HasColumnType("uuid[]")
+                        .HasColumnName("product_ids");
+
+                    b.Property<DateTime>("StartsAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("starts_at_utc");
+
+                    b.HasKey("Id")
+                        .HasName("pk_coupons");
+
+                    b.HasIndex("CampaignKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_coupons_campaign_key");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_coupons_code");
+
+                    b.HasIndex("ExpiresAtUtc")
+                        .HasDatabaseName("ix_coupons_expires_at_utc");
+
+                    b.ToTable("coupons", "ordering");
+                });
+
             modelBuilder.Entity("OrderFlow.Ordering.API.Domain.Order", b =>
                 {
                     b.Property<Guid>("Id")
@@ -254,6 +306,11 @@ namespace OrderFlow.Ordering.API.Data.Migrations
                         .HasMaxLength(4)
                         .HasColumnType("character varying(4)")
                         .HasColumnName("card_last4");
+
+                    b.Property<string>("CouponCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("coupon_code");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone")
@@ -270,6 +327,11 @@ namespace OrderFlow.Ordering.API.Data.Migrations
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)")
                         .HasColumnName("customer_name");
+
+                    b.Property<decimal>("Discount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("discount");
 
                     b.Property<string>("FailureReason")
                         .HasMaxLength(500)
@@ -298,6 +360,11 @@ namespace OrderFlow.Ordering.API.Data.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
                         .HasColumnName("status");
+
+                    b.Property<decimal>("Subtotal")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("subtotal");
 
                     b.Property<decimal>("Total")
                         .HasPrecision(12, 2)
@@ -409,7 +476,6 @@ namespace OrderFlow.Ordering.API.Data.Migrations
                     b.OwnsMany("OrderFlow.Ordering.API.Domain.OrderItem", "Items", b1 =>
                         {
                             b1.Property<Guid>("Id")
-                                .ValueGeneratedOnAdd()
                                 .HasColumnType("uuid")
                                 .HasColumnName("id");
 
@@ -452,7 +518,6 @@ namespace OrderFlow.Ordering.API.Data.Migrations
                     b.OwnsMany("OrderFlow.Ordering.API.Domain.OrderStatusChange", "History", b1 =>
                         {
                             b1.Property<Guid>("Id")
-                                .ValueGeneratedOnAdd()
                                 .HasColumnType("uuid")
                                 .HasColumnName("id");
 

@@ -109,11 +109,40 @@ node scripts/smoke-test.mjs https://meetul-orderflow-api.onrender.com
 
 ---
 
+## 5. Weekly deals email (optional, free)
+
+Every Monday the platform picks 3 in-stock products, creates a coupon (15–30% off, valid 72 hours) and emails it to every registered customer. Demo and `example.com` addresses are skipped, and every email has a one-click unsubscribe link. Without the steps below the campaign still runs, but the emails are only simulated: they show on the admin **System → Emails** tab and aren't delivered.
+
+Render's free tier blocks SMTP ports, so real email goes through **Brevo's HTTPS API** (free: 300 emails a day, no card).
+
+1. Sign up at <https://www.brevo.com>. Under **Senders, domains & dedicated IPs → Senders**, add and verify the address the email should come from (your Gmail works).
+2. Under **SMTP & API → API keys**, create a key.
+3. Add three variables to the `orderflow-secrets` group, then redeploy:
+
+   | Key | Value |
+   | --- | --- |
+   | `BREVO_API_KEY` | the Brevo API key |
+   | `MAIL_FROM_EMAIL` | the verified sender address |
+   | `INTERNAL_API_KEY` | a random string, 32+ characters (same command as step 1d) |
+
+4. In [cron-job.org](https://cron-job.org) create a job:
+   - **URL:** `https://meetul-orderflow-api.onrender.com/api/system/campaigns/weekly-deals`
+   - **Schedule:** every Monday at 10:00, timezone **Asia/Kolkata** (crontab `0 10 * * 1`)
+   - **Advanced → Request method:** `POST`. **Headers:** `X-Internal-Key` = your `INTERNAL_API_KEY`.
+
+   The gateway answers at once and launches the campaign in the background, so the job succeeds even while other services wake up. A retried call in the same week does nothing.
+
+To test, sign in as admin and click **Send weekly deals now** on the **System** page. To receive it yourself, register an account with your own email address first.
+
+> Mail sent from a `@gmail.com` address through a third-party service can land in Spam, because Gmail can't verify that Brevo is allowed to send for gmail.com. A domain you own (verified in Brevo with its DNS records) avoids that.
+
+---
+
 ## Free-tier behaviour and limits
 
 - **Sleeping services.** Render spins a free service down after 15 minutes without inbound HTTP traffic and wakes it on the next request (about a minute). The gateway's `/api/system/warmup`, which the frontend calls on load and every 10 minutes while the tab is visible, wakes every service in parallel. That matters for the payment and notification workers: they consume from RabbitMQ and get no HTTP traffic of their own.
 - **Fast sign-in.** Identity runs inside the gateway, so signing in only needs one service awake. If the gateway is still starting, the login and register buttons show "Waking up the live demo…" and retry automatically for up to two minutes instead of failing.
-- **Keeping the demo awake during the day.** A free [cron-job.org](https://cron-job.org) account can send a `HEAD` request to `https://meetul-orderflow-api.onrender.com/health` and `https://meetul-orderflow-catalog.onrender.com/health` with the schedule `*/10 10-18 * * *` (timezone Asia/Kolkata). That keeps sign-in and the catalog instant from 10:00 to 19:00 every day for about 560 of the 750 free hours. Use `HEAD`, not `GET`: while a service is waking, Render answers with a large HTML page that cron-job.org rejects.
+- **Keeping the demo awake during the day.** A free [cron-job.org](https://cron-job.org) account sends a `HEAD` request to `https://meetul-orderflow-api.onrender.com/health` with the schedule `*/10 10-21 * * 1-5` (timezone Asia/Kolkata). While the gateway is awake it pings Catalog every 10 minutes itself (`KEEP_WARM_SERVICES`, default `catalog`), so sign-in and the catalog stay instant on weekdays 10:00–22:00 for about 530 of the 750 free hours. Use `HEAD`, not `GET`: while a service is waking, Render answers with a large HTML page that cron-job.org rejects, and it disables the job after repeated failures.
 - **Render:** 750 free instance-hours per month across all services. Sleeping services don't consume hours.
 - **Neon:** compute scales to zero when idle. The first query after a pause takes a second or two, and the services retry during startup.
 - **CloudAMQP Little Lemur:** a limited number of connections and messages per month, plenty for a portfolio demo. Prefetch is kept low.

@@ -1,13 +1,14 @@
 import { CurrencyPipe, DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, input, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Subject, Subscription, debounceTime, distinctUntilChanged, finalize } from 'rxjs';
-import { CatalogApi } from '../../core/api.service';
+import { CatalogApi, CouponsApi } from '../../core/api.service';
+import { dealPrice, formatDealEnd, inDeal } from '../../core/deals';
 import { retryWhileWaking } from '../../core/warmup.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { CartStore } from '../../core/cart.store';
-import { Category, Product } from '../../core/models';
+import { Category, Coupon, Product } from '../../core/models';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
 import { ProductArt } from '../../shared/product-art';
@@ -39,6 +40,19 @@ const PAGE_SIZE = 12;
           }
         </div>
       </section>
+
+      @if (deal(); as d) {
+        <section class="deal-banner fade-up">
+          <div class="deal-icon"><app-icon name="sparkles" [size]="20" /></div>
+          <div class="grow">
+            <div class="strong">This week's deals: {{ d.percentOff }}% off {{ d.productIds.length }} products</div>
+            <div class="small muted">Use code <span class="code">{{ d.code }}</span> at checkout · ends {{ dealEnds() }}</div>
+          </div>
+          <button class="btn btn-sm" [class.btn-primary]="dealsOnly()" (click)="toggleDealsOnly()">
+            {{ dealsOnly() ? 'Show all products' : 'Show deals only' }}
+          </button>
+        </section>
+      }
 
       <section class="toolbar">
         <div class="input-icon grow search">
@@ -95,6 +109,7 @@ const PAGE_SIZE = 12;
                 <app-product-art [name]="p.name" [category]="p.category" [imageUrl]="p.imageUrl" />
                 @if (p.stock === 0) { <span class="stock-flag out">Sold out</span> }
                 @else if (p.stock <= 5) { <span class="stock-flag low">Only {{ p.stock }} left</span> }
+                @if (isDeal(p)) { <span class="deal-flag">-{{ deal()!.percentOff }}%</span> }
                 @if (auth.isAdmin()) {
                   <div class="admin-actions">
                     <button class="btn btn-sm btn-icon" (click)="openEditor(p)" aria-label="Edit"><app-icon name="edit" [size]="14" /></button>
@@ -110,7 +125,11 @@ const PAGE_SIZE = 12;
                 <h3 class="pname" [title]="p.name">{{ p.name }}</h3>
                 <p class="desc">{{ p.description }}</p>
                 <div class="row-between foot">
-                  <span class="price">{{ p.price | currency }}</span>
+                  @if (isDeal(p)) {
+                    <span class="price">{{ salePrice(p) | currency }} <s class="was">{{ p.price | currency }}</s></span>
+                  } @else {
+                    <span class="price">{{ p.price | currency }}</span>
+                  }
                   <button class="btn btn-dark btn-sm" (click)="cart.add(p)" [disabled]="p.stock === 0">
                     <app-icon name="plus" [size]="14" /> Add
                   </button>
@@ -120,7 +139,7 @@ const PAGE_SIZE = 12;
           }
         </div>
 
-        @if (totalPages() > 1) {
+        @if (totalPages() > 1 && !dealsOnly()) {
           <nav class="pager">
             <button class="btn btn-sm" (click)="goTo(page() - 1)" [disabled]="page() === 1"><app-icon name="chevron-left" [size]="14" /> Prev</button>
             <span class="small muted">Page {{ page() }} of {{ totalPages() }} · {{ total() }} products</span>
@@ -149,6 +168,15 @@ const PAGE_SIZE = 12;
   `,
   styles: `
     .waking-note { align-items: center; margin-bottom: 16px; }
+    .deal-banner {
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 14px 18px; margin-bottom: 18px;
+      border-radius: var(--radius-lg); border: 1px solid var(--primary-100);
+      background: linear-gradient(90deg, var(--primary-50), #f5f3ff);
+    }
+    .deal-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--primary); color: #fff; flex-shrink: 0; }
+    .code { font-family: var(--mono); font-weight: 700; color: var(--primary); background: #fff; padding: 1px 7px; border-radius: 6px; border: 1px dashed var(--primary); }
+    .deal-flag { position: absolute; right: 12px; bottom: 12px; font-size: 0.78rem; font-weight: 800; padding: 4px 10px; border-radius: 999px; background: var(--danger); color: #fff; box-shadow: var(--shadow-sm); }
+    .was { font-size: 0.85rem; font-weight: 500; color: var(--text-3); margin-left: 4px; }
     .hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 24px; }
     .hero h1 { font-size: 2rem; }
     .hero .eyebrow { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--primary); margin-bottom: 8px; }
@@ -185,6 +213,7 @@ const PAGE_SIZE = 12;
 })
 export class ProductsPage implements OnInit {
   private readonly api = inject(CatalogApi);
+  private readonly coupons = inject(CouponsApi);
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly auth = inject(AuthService);
@@ -210,6 +239,12 @@ export class ProductsPage implements OnInit {
   protected readonly editing = signal<Product | null | undefined>(undefined);
   protected readonly confirmDelete = signal<Product | null>(null);
 
+  /** `?coupon=CODE` from the weekly deals email: saved for checkout and shows the deal products. */
+  readonly coupon = input<string>();
+  protected readonly deal = signal<Coupon | null>(null);
+  protected readonly dealsOnly = signal(false);
+  protected readonly dealEnds = computed(() => (this.deal() ? formatDealEnd(this.deal()!.expiresAtUtc) : ''));
+
   protected readonly totalPages = computed(() => Math.max(1, Math.ceil(this.total() / PAGE_SIZE)));
   protected readonly totalAll = computed(() => this.categories().reduce((n, c) => n + c.count, 0));
   protected readonly categoryNames = computed(() => this.categories().map(c => c.name));
@@ -222,8 +257,39 @@ export class ProductsPage implements OnInit {
         this.page.set(1);
         this.load();
       });
+    const fromEmail = this.coupon()?.trim().toUpperCase();
+    if (fromEmail) {
+      this.cart.couponCode.set(fromEmail);
+      this.toast.success(`Coupon ${fromEmail} saved`, 'It will be applied automatically at checkout.');
+    }
+    this.loadDeal(!!fromEmail);
     this.loadCategories();
     this.load();
+  }
+
+  protected isDeal(p: Product): boolean {
+    return inDeal(this.deal(), p.id);
+  }
+
+  protected salePrice(p: Product): number {
+    return dealPrice(p.price, this.deal()?.percentOff ?? 0);
+  }
+
+  toggleDealsOnly() {
+    this.dealsOnly.update(v => !v);
+    this.page.set(1);
+    this.load();
+  }
+
+  private loadDeal(showDealsOnly: boolean) {
+    // Ordering may be asleep on free hosting: retry quietly; the banner appears once it answers.
+    this.coupons.active().pipe(retryWhileWaking()).subscribe({
+      next: deal => {
+        this.deal.set(deal);
+        if (deal && showDealsOnly && !this.dealsOnly()) this.toggleDealsOnly();
+      },
+      error: () => undefined
+    });
   }
 
   setCategory(category: string) {
@@ -280,6 +346,24 @@ export class ProductsPage implements OnInit {
     this.loading.set(true);
     this.failed.set(false);
     this.loadSub?.unsubscribe();
+
+    const deal = this.deal();
+    if (this.dealsOnly() && deal) {
+      this.loadSub = this.api.lookup(deal.productIds).pipe(retryWhileWaking()).subscribe({
+        next: items => {
+          this.products.set(items);
+          this.total.set(items.length);
+          this.cache.set(null);
+          this.loading.set(false);
+        },
+        error: () => {
+          this.loading.set(false);
+          this.failed.set(true);
+        }
+      });
+      return;
+    }
+
     this.loadSub = this.api
       .list({ search: this.search(), category: this.category(), sort: this.sort(), page: this.page(), pageSize: PAGE_SIZE })
       .pipe(

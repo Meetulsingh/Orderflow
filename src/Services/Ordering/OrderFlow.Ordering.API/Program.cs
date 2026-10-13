@@ -3,6 +3,7 @@ using FluentValidation;
 using MassTransit;
 using MediatR;
 using Microsoft.Extensions.Http.Resilience;
+using OrderFlow.Ordering.API.Application;
 using OrderFlow.Ordering.API.Application.Behaviors;
 using OrderFlow.Ordering.API.Application.Commands;
 using OrderFlow.Ordering.API.Application.Queries;
@@ -56,6 +57,8 @@ builder.Services.AddHttpClient<CatalogClient>(c =>
 builder.Services.AddSignalR()
     .AddJsonProtocol(o => o.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddSingleton<OrderNotifier>();
+builder.Services.AddScoped<CampaignService>();
+builder.AddInternalApiKey();
 
 var app = builder.Build();
 
@@ -73,7 +76,7 @@ orders.MapPost("/", async (
         var idempotencyKey = http.Request.Headers["Idempotency-Key"].FirstOrDefault();
         var order = await sender.Send(new PlaceOrderCommand(
             user.GetUserId(), user.GetEmail(), user.GetFullName(), idempotencyKey,
-            request.Items ?? [], request.ShippingAddress, request.Payment), ct);
+            request.Items ?? [], request.ShippingAddress, request.Payment, request.CouponCode), ct);
         return Results.Accepted($"/api/orders/{order.Id}", order);
     })
     .WithSummary("Place an order (202 Accepted — payment is processed asynchronously)");
@@ -94,6 +97,7 @@ admin.MapGet("/", (ISender sender, int? take, CancellationToken ct) => sender.Se
 admin.MapGet("/stats", (ISender sender, CancellationToken ct) => sender.Send(new GetOrderStatsQuery(), ct))
     .WithSummary("Order KPIs");
 
+app.MapCampaignEndpoints();
 app.MapHub<OrderHub>(OrderHub.Path);
 
 await app.MigrateDatabaseAsync<OrderingDbContext>();

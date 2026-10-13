@@ -1,13 +1,35 @@
 using Microsoft.EntityFrameworkCore;
 using OrderFlow.Notification.Worker;
+using OrderFlow.Notification.Worker.Campaigns;
 using OrderFlow.Notification.Worker.Data;
+using OrderFlow.Notification.Worker.Email;
 using OrderFlow.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 builder.AddPostgres<NotificationDbContext>(NotificationDbContext.Schema);
-builder.AddMessaging("notification", x => x.AddConsumer<NotificationConsumer>());
+builder.AddMessaging("notification", x =>
+{
+    x.AddConsumer<NotificationConsumer>();
+    x.AddConsumer<WeeklyDealsConsumer>();
+});
+
+// Real email through Brevo when BREVO_API_KEY is set, otherwise simulated (recorded and logged only).
+var emailOptions = EmailOptions.From(builder.Configuration);
+builder.Services.AddSingleton(emailOptions);
+if (emailOptions.IsLive)
+    builder.Services.AddHttpClient<IEmailSender, BrevoEmailSender>(c => c.Timeout = TimeSpan.FromSeconds(30));
+else
+    builder.Services.AddSingleton<IEmailSender, SimulatedEmailSender>();
+
+builder.AddInternalApiKey();
+// The marketing recipient list lives in the Identity module, hosted by the gateway.
+builder.Services.AddHttpClient<RecipientsClient>(c =>
+{
+    c.BaseAddress = new Uri(builder.Configuration["Services:Gateway"] ?? "http://localhost:5000");
+    c.Timeout = TimeSpan.FromSeconds(120); // the gateway may be cold-starting
+});
 
 var app = builder.Build();
 

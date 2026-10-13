@@ -72,6 +72,18 @@ public sealed record UserRegistered(
     string Email,
     string FullName) : IIntegrationEvent;
 
+public sealed record DealProduct(Guid ProductId, string Name, decimal Price, decimal DealPrice, string? ImageUrl);
+
+/// <summary>A weekly campaign started: a coupon code that discounts a few products until it expires.</summary>
+public sealed record WeeklyDealsLaunched(
+    Guid EventId,
+    DateTime OccurredAtUtc,
+    Guid CampaignId,
+    string CouponCode,
+    int PercentOff,
+    DateTime ExpiresAtUtc,
+    IReadOnlyList<DealProduct> Products) : IIntegrationEvent;
+
 public sealed record ProductStockLow(
     Guid EventId,
     DateTime OccurredAtUtc,
