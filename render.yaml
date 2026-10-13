@@ -119,7 +119,7 @@ services:
       - key: FRONTEND_URL
         value: https://meetul-orderflow.onrender.com
       - key: MAIL_FROM_NAME
-        value: OrderFlow Deals
+        value: OrderFlow
     buildFilter:
       paths:
         - src/Services/Notification/**

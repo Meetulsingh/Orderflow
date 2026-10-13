@@ -4,6 +4,7 @@ using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using OrderFlow.Contracts;
 using OrderFlow.Notification.Worker.Data;
+using OrderFlow.Notification.Worker.Email;
 using OrderFlow.ServiceDefaults;
 
 namespace OrderFlow.Notification.Worker;
@@ -13,7 +14,11 @@ namespace OrderFlow.Notification.Worker;
 /// and records dead-letter alerts when another service faults on a message.
 /// One consumer type → one queue bound to all exchanges, which keeps the free broker's queue count low.
 /// </summary>
-public sealed class NotificationConsumer(NotificationDbContext db, ILogger<NotificationConsumer> logger) :
+public sealed class NotificationConsumer(
+    NotificationDbContext db,
+    IEmailSender sender,
+    EmailOptions emailOptions,
+    ILogger<NotificationConsumer> logger) :
     IConsumer<UserRegistered>,
     IConsumer<OrderSubmitted>,
     IConsumer<PaymentProcessingStarted>,
@@ -25,13 +30,29 @@ public sealed class NotificationConsumer(NotificationDbContext db, ILogger<Notif
     // Services run with InvariantGlobalization, so format currency explicitly rather than via a culture.
     private static string Usd(decimal amount) => "$" + amount.ToString("N2", CultureInfo.InvariantCulture);
 
-    public Task Consume(ConsumeContext<UserRegistered> context)
+    /// <summary>The welcome email is really delivered (through Brevo when configured), not only recorded.</summary>
+    public async Task Consume(ConsumeContext<UserRegistered> context)
     {
         var m = context.Message;
-        return Record(context, m.EventId, "identity", null, EventSeverity.Info,
-            $"New customer registered: {m.Email}",
-            Email(m.UserId, m.Email, "Welcome to OrderFlow 👋",
-                $"Hi {m.FullName},\n\nYour account is ready. Browse the catalog and place your first order — you'll see it move through our event-driven pipeline in real time.\n\n— The OrderFlow team"));
+        // A redelivered event must not send a second welcome email.
+        if (await db.EventLogs.AsNoTracking().AnyAsync(e => e.EventId == m.EventId, context.CancellationToken)) return;
+
+        var welcome = WelcomeEmail.Build(m.Email, m.FullName, emailOptions.FrontendUrl);
+        string delivery;
+        if (!EmailAddresses.IsDeliverable(m.Email))
+        {
+            delivery = "not sent: demo/test address";
+        }
+        else
+        {
+            // Transient provider errors throw, so MassTransit retries the whole message before anything is recorded.
+            var result = await sender.SendAsync(welcome, context.CancellationToken);
+            delivery = result.Delivered ? result.Status : $"rejected: {result.Error}";
+        }
+
+        await Record(context, m.EventId, "identity", null, EventSeverity.Info,
+            $"New customer registered: {m.Email} (welcome email {delivery})",
+            Email(m.UserId, m.Email, welcome.Subject, welcome.Text));
     }
 
     public Task Consume(ConsumeContext<OrderSubmitted> context)

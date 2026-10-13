@@ -23,7 +23,8 @@ public static class DealsEmail
         return new EmailMessage(toEmail, toName, subject,
             Html(deal, firstName, shopUrl, endsIst, unsubscribeUrl, frontendUrl),
             Text(deal, firstName, shopUrl, endsIst, unsubscribeUrl),
-            unsubscribeUrl);
+            unsubscribeUrl,
+            "weekly-deals");
     }
 
     private static string Html(WeeklyDealsLaunched deal, string firstName, string shopUrl, string endsIst, string unsubscribeUrl, string frontendUrl)

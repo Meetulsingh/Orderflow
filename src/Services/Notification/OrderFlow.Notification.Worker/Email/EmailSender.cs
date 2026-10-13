@@ -3,7 +3,8 @@ using System.Text.Json;
 
 namespace OrderFlow.Notification.Worker.Email;
 
-public sealed record EmailMessage(string ToEmail, string ToName, string Subject, string Html, string Text, string? UnsubscribeUrl);
+/// <param name="Tag">Shown in Brevo's statistics to tell email types apart (e.g. "weekly-deals", "welcome").</param>
+public sealed record EmailMessage(string ToEmail, string ToName, string Subject, string Html, string Text, string? UnsubscribeUrl, string Tag);
 
 public sealed record EmailResult(bool Delivered, string Status, string? ProviderMessageId = null, string? Error = null);
 
@@ -11,7 +12,7 @@ public sealed class EmailOptions
 {
     public string? BrevoApiKey { get; init; }
     public string FromEmail { get; init; } = "no-reply@orderflow.dev";
-    public string FromName { get; init; } = "OrderFlow Deals";
+    public string FromName { get; init; } = "OrderFlow";
     public string FrontendUrl { get; init; } = "http://localhost:4200";
 
     public bool IsLive => !string.IsNullOrWhiteSpace(BrevoApiKey);
@@ -20,7 +21,7 @@ public sealed class EmailOptions
     {
         BrevoApiKey = config["BREVO_API_KEY"],
         FromEmail = config["MAIL_FROM_EMAIL"] ?? "no-reply@orderflow.dev",
-        FromName = config["MAIL_FROM_NAME"] ?? "OrderFlow Deals",
+        FromName = config["MAIL_FROM_NAME"] ?? "OrderFlow",
         FrontendUrl = (config["FRONTEND_URL"] ?? "http://localhost:4200").TrimEnd('/')
     };
 }
@@ -56,7 +57,7 @@ public sealed class BrevoEmailSender(HttpClient http, EmailOptions options, ILog
                 htmlContent = message.Html,
                 textContent = message.Text,
                 headers,
-                tags = new[] { "weekly-deals" }
+                tags = new[] { message.Tag }
             })
         };
         request.Headers.Add("api-key", options.BrevoApiKey);

@@ -15,10 +15,6 @@ public sealed record MarketingRecipient(Guid UserId, string Email, string FullNa
 /// </summary>
 public static class MarketingEndpoints
 {
-    // Demo, test and reserved domains never receive real email.
-    private static readonly string[] SkippedDomains = ["orderflow.dev", "example.com", "example.org", "example.net"];
-    private static readonly string[] SkippedSuffixes = [".test", ".invalid", ".local", ".example"];
-
     public static void MapMarketingEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet("/api/internal/marketing/recipients", async (HttpContext http, IdentityDbContext db, JwtOptions jwt, CancellationToken ct) =>
@@ -31,7 +27,7 @@ public static class MarketingEndpoints
 
                 var baseUrl = $"{http.Request.Scheme}://{http.Request.Host}";
                 return users
-                    .Where(u => IsDeliverable(u.Email))
+                    .Where(u => EmailAddresses.IsDeliverable(u.Email))
                     .Select(u => new MarketingRecipient(u.Id, u.Email, u.FullName,
                         $"{baseUrl}/api/auth/unsubscribe?u={u.Id}&t={Token(jwt, u.Id)}"))
                     .ToList();
@@ -57,14 +53,6 @@ public static class MarketingEndpoints
             .AllowAnonymous()
             .WithTags("Marketing")
             .WithSummary("Stop deals emails for one customer (signed link from the email)");
-    }
-
-    public static bool IsDeliverable(string email)
-    {
-        var at = email.LastIndexOf('@');
-        if (at <= 0) return false;
-        var domain = email[(at + 1)..].ToLowerInvariant();
-        return !SkippedDomains.Contains(domain) && !SkippedSuffixes.Any(domain.EndsWith);
     }
 
     /// <summary>A signature over the user id, so nobody can unsubscribe someone else by guessing ids.</summary>
