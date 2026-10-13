@@ -33,13 +33,14 @@ export class CatalogApi {
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined && value !== null && value !== '') params = params.set(key, String(value));
     }
-    return this.http.get<PagedResult<Product>>(this.base, { params, observe: 'response' }).pipe(
+    // Silent: the catalog page retries while services wake and shows its own status instead of toasts.
+    return this.http.get<PagedResult<Product>>(this.base, { params, observe: 'response', ...silent() }).pipe(
       map(r => ({ data: r.body!, cache: (r.headers.get('X-Cache') as 'HIT' | 'MISS' | null) ?? null }))
     );
   }
 
   categories(): Observable<Category[]> {
-    return this.http.get<Category[]>(`${this.base}/categories`);
+    return this.http.get<Category[]>(`${this.base}/categories`, silent());
   }
 
   create(product: UpsertProduct): Observable<Product> {

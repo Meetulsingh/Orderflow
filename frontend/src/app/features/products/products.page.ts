@@ -2,8 +2,9 @@ import { CurrencyPipe, DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
+import { Subject, Subscription, debounceTime, distinctUntilChanged, finalize } from 'rxjs';
 import { CatalogApi } from '../../core/api.service';
+import { retryWhileWaking } from '../../core/warmup.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { CartStore } from '../../core/cart.store';
 import { Category, Product } from '../../core/models';
@@ -60,7 +61,20 @@ const PAGE_SIZE = 12;
         }
       </section>
 
-      @if (loading() && products().length === 0) {
+      @if (waking()) {
+        <div class="alert alert-info waking-note">
+          <span class="spinner"></span>
+          <span>Waking up the catalog service. Free-tier hosting sleeps when idle, so this takes about 30 seconds. Products will appear automatically.</span>
+        </div>
+      }
+      @if (failed() && products().length === 0) {
+        <div class="card empty-state">
+          <div class="empty-icon"><app-icon name="alert-circle" [size]="24" /></div>
+          <h3>Couldn't load products</h3>
+          <p class="small">The catalog service didn't respond. It may still be starting up.</p>
+          <button class="btn btn-primary" (click)="retry()"><app-icon name="refresh" [size]="15" /> Try again</button>
+        </div>
+      } @else if (loading() && products().length === 0) {
         <div class="grid">
           @for (i of skeletons; track i) {
             <div class="card product"><div class="skeleton media"></div><div class="body stack"><div class="skeleton" style="height:14px;width:40%"></div><div class="skeleton" style="height:18px;width:80%"></div><div class="skeleton" style="height:36px"></div></div></div>
@@ -134,6 +148,7 @@ const PAGE_SIZE = 12;
     }
   `,
   styles: `
+    .waking-note { align-items: center; margin-bottom: 16px; }
     .hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 24px; }
     .hero h1 { font-size: 2rem; }
     .hero .eyebrow { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--primary); margin-bottom: 8px; }
@@ -186,6 +201,10 @@ export class ProductsPage implements OnInit {
   protected readonly category = signal('');
   protected readonly sort = signal('name');
   protected readonly loading = signal(true);
+  /** The first load is being retried because the catalog service is still waking up. */
+  protected readonly waking = signal(false);
+  protected readonly failed = signal(false);
+  private loadSub?: Subscription;
   protected readonly cache = signal<'HIT' | 'MISS' | null>(null);
 
   protected readonly editing = signal<Product | null | undefined>(undefined);
@@ -252,10 +271,21 @@ export class ProductsPage implements OnInit {
     });
   }
 
+  retry() {
+    this.loadCategories();
+    this.load();
+  }
+
   private load() {
     this.loading.set(true);
-    this.api
+    this.failed.set(false);
+    this.loadSub?.unsubscribe();
+    this.loadSub = this.api
       .list({ search: this.search(), category: this.category(), sort: this.sort(), page: this.page(), pageSize: PAGE_SIZE })
+      .pipe(
+        retryWhileWaking(() => this.waking.set(true)),
+        finalize(() => this.waking.set(false))
+      )
       .subscribe({
         next: ({ data, cache }) => {
           this.products.set(data.items);
@@ -263,11 +293,14 @@ export class ProductsPage implements OnInit {
           this.cache.set(cache);
           this.loading.set(false);
         },
-        error: () => this.loading.set(false)
+        error: () => {
+          this.loading.set(false);
+          this.failed.set(true);
+        }
       });
   }
 
   private loadCategories() {
-    this.api.categories().subscribe(c => this.categories.set(c));
+    this.api.categories().pipe(retryWhileWaking()).subscribe({ next: c => this.categories.set(c), error: () => undefined });
   }
 }
